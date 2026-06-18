@@ -75,3 +75,21 @@ def test_mark_superseded_failure_is_not_swallowed(tmp_path):
         kb.write("global", "alpha beta gamma delta epsilon zeta eta theta iota kappa")
     # upsert succeeded, so NO misleading pending marker should be written
     assert read_pending_markers(tmp_path) == []
+
+
+def test_expired_scratch_neighbor_does_not_suppress_write(tmp_path):
+    from datetime import timedelta
+    from kb.models import Fact
+    from kb.util import content_hash
+    cfg = Config(repo_path=tmp_path, db_url="x")
+    emb = FakeEmbedder()
+    store = InMemoryVectorStore(emb)
+    kb = KnowledgeBase(store, emb, tmp_path, cfg, clock=lambda: FIXED)
+    content = "alpha beta gamma scratch note"
+    ch = content_hash(content)
+    expired = Fact(id="old-" + ch[:6], scope="agent:x:scratch", content=content,
+                   tags=[], source=None, ts=FIXED, content_hash=ch,
+                   expires_at=FIXED - timedelta(hours=1))
+    store.upsert(expired, emb.embed([content])[0])
+    r = kb.write("agent:x:scratch", content)
+    assert r["action"] == "created"  # expired neighbor must NOT cause skip/merge

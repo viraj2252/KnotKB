@@ -45,8 +45,8 @@ class InMemoryVectorStore:
                 continue
             yield fact, vec
 
-    def nearest(self, vector: list[float], scope: str, k: int = 1):
-        scored = [(f, _cos(vector, vec)) for f, vec in self._active()
+    def nearest(self, vector, scope, k=1, now=None):
+        scored = [(f, _cos(vector, vec)) for f, vec in self._active(now)
                   if f.scope == scope]
         scored.sort(key=lambda fv: -fv[1])
         return scored[:k]

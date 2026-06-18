@@ -34,7 +34,7 @@ class KnowledgeBase:
         ts = self.clock()
         vector = self.embedder.embed([content])[0]
 
-        neighbors = self.store.nearest(vector, scope, k=1)
+        neighbors = self.store.nearest(vector, scope, k=1, now=ts)
         best_sim = neighbors[0][1] if neighbors else None
         action = decide(best_sim, self._dedup)
 

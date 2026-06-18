@@ -1,12 +1,3 @@
-def rrf_fuse(ranked_lists: list[list[str]], k: int = 60) -> list[tuple[str, float]]:
-    """Reciprocal-rank fusion. Deterministic; ties broken by id ascending."""
-    scores: dict[str, float] = {}
-    for ranked in ranked_lists:
-        for rank, item_id in enumerate(ranked):
-            scores[item_id] = scores.get(item_id, 0.0) + 1.0 / (k + rank + 1)
-    return sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))
-
-
 from datetime import datetime
 from typing import Protocol
 
@@ -16,9 +7,18 @@ from pgvector.psycopg import register_vector, Vector
 from kb.models import Fact
 
 
+def rrf_fuse(ranked_lists: list[list[str]], k: int = 60) -> list[tuple[str, float]]:
+    """Reciprocal-rank fusion. Deterministic; ties broken by id ascending."""
+    scores: dict[str, float] = {}
+    for ranked in ranked_lists:
+        for rank, item_id in enumerate(ranked):
+            scores[item_id] = scores.get(item_id, 0.0) + 1.0 / (k + rank + 1)
+    return sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))
+
+
 class VectorStore(Protocol):
     def upsert(self, fact: Fact, vector: list[float]) -> None: ...
-    def nearest(self, vector: list[float], scope: str, k: int = 1) -> list[tuple[Fact, float]]: ...
+    def nearest(self, vector: list[float], scope: str, k: int = 1, now: datetime | None = None) -> list[tuple[Fact, float]]: ...
     def search(self, query_vector: list[float], query_text: str, scopes: list[str],
                tags: list[str] | None, k: int, now: datetime) -> list[tuple[Fact, float]]: ...
     def mark_superseded(self, old_id: str, new_id: str) -> None: ...
@@ -85,13 +85,17 @@ class PgVectorStore:
     def _active_clause(self) -> str:
         return "superseded_by IS NULL AND (expires_at IS NULL OR expires_at > %(now)s)"
 
-    def nearest(self, vector, scope, k=1):
-        from datetime import datetime, timezone
+    def nearest(self, vector, scope, k=1, now=None):
+        params = {"v": Vector(vector), "scope": scope, "k": k}
+        expiry = ""
+        if now is not None:
+            expiry = "AND (expires_at IS NULL OR expires_at > %(now)s)"
+            params["now"] = now
         rows = self.conn.execute(
             f"""SELECT {_COLS}, 1 - (embedding <=> %(v)s) AS sim FROM facts
-                WHERE scope = %(scope)s AND superseded_by IS NULL
+                WHERE scope = %(scope)s AND superseded_by IS NULL {expiry}
                 ORDER BY embedding <=> %(v)s LIMIT %(k)s""",
-            {"v": Vector(vector), "scope": scope, "k": k},
+            params,
         ).fetchall()
         return [(_row_to_fact(r[:-1]), float(r[-1])) for r in rows]
 
@@ -112,7 +116,6 @@ class PgVectorStore:
         fused = rrf_fuse([vec_ids, fts_ids])[:k]
         if not fused:
             return []
-        order = {fid: i for i, (fid, _) in enumerate(fused)}
         rows = self.conn.execute(
             f"SELECT {_COLS} FROM facts WHERE id = ANY(%s)",
             ([fid for fid, _ in fused],)).fetchall()
