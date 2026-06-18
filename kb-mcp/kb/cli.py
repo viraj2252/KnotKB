@@ -20,6 +20,7 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="kb")
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("reindex", help="rebuild the index from markdown")
+    sub.add_parser("lint", help="health-check tags and index state")
     args = parser.parse_args(argv)
 
     cfg, store, embedder = _load()
@@ -27,6 +28,16 @@ def main(argv=None) -> int:
         n = reindex(store, embedder, cfg.repo_path, cfg)
         print(f"indexed {n} facts")
         return 0
+    if args.cmd == "lint":
+        from kb.lint import lint_report
+        report = lint_report(cfg.repo_path, cfg)
+        for a, b in report["tag_drift"]:
+            print(f"tag-drift: {a!r} ~ {b!r}")
+        for fid in report["pending_reindex"]:
+            print(f"pending-reindex: {fid}")
+        issues = len(report["tag_drift"]) + len(report["pending_reindex"])
+        print(f"{issues} issue(s)")
+        return 1 if issues else 0
     return 1
 
 
