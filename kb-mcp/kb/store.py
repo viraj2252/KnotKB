@@ -65,3 +65,29 @@ class KnowledgeBase:
             self.store.mark_superseded(neighbors[0][0].id, fact.id)
 
         return {"id": fact.id, "path": fact.path, "action": action}
+
+    def search(self, query: str, scope=None, tags=None, k: int = 8) -> list[dict]:
+        if scope is None:
+            scopes = ["global"]
+        elif isinstance(scope, str):
+            scopes = [scope]
+        else:
+            scopes = list(scope)
+        for s in scopes:
+            validate_scope(s)
+
+        now = self.clock()
+        qvec = self.embedder.embed([query])[0]
+        hits = self.store.search(qvec, query, scopes=scopes, tags=tags, k=k, now=now)
+        return [
+            {
+                "content": f.content,
+                "score": round(score, 6),
+                "scope": f.scope,
+                "tags": f.tags,
+                "source": f.source,
+                "ts": f.ts.isoformat() if f.ts else None,
+                "path": f.path,
+            }
+            for f, score in hits
+        ]
