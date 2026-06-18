@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.egg-info/
+
+# Local env / secrets
+.env
+
+# Pending-reindex markers are runtime state, not source of truth
+.kb/pending/
