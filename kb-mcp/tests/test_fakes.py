@@ -45,8 +45,8 @@ def test_inmemory_search_excludes_superseded_and_expired():
 
 def test_inmemory_tag_filter():
     s = InMemoryVectorStore(EMB)
-    a = fact("alpha", tags=["startup-idea"])
-    b = fact("alpha", tags=["life-lesson"])
+    a = fact("alpha one", tags=["startup-idea"])
+    b = fact("alpha two", tags=["life-lesson"])
     s.upsert(a, EMB.embed([a.content])[0]); s.upsert(b, EMB.embed([b.content])[0])
     now = datetime(2026, 6, 18, 12, 0, 0, tzinfo=timezone.utc)
     res = s.search(EMB.embed(["alpha"])[0], "alpha", scopes=["global"],
