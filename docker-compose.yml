@@ -21,7 +21,11 @@ services:
     environment:
       KB_REPO_PATH: /kb
     volumes:
-      - ./:/kb            # the KB repo (markdown source of truth); ordinary host dir, no flock
+      - ./memory:/kb/memory
+      - ./wiki:/kb/wiki
+      - ./decisions:/kb/decisions
+      - ./sources:/kb/sources
+      - ./log.md:/kb/log.md
     ports:
       - "127.0.0.1:${KB_MCP_PORT:-8077}:8077"
     depends_on:

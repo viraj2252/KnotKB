@@ -1,3 +1,4 @@
+import hmac
 import os
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -19,7 +20,8 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
         if request.url.path == "/health":
             return await call_next(request)
         auth = request.headers.get("Authorization", "")
-        if not auth.startswith("Bearer ") or auth[len("Bearer "):] != self.key:
+        token = auth[len("Bearer "):] if auth.startswith("Bearer ") else ""
+        if not auth.startswith("Bearer ") or not hmac.compare_digest(token, self.key):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
         return await call_next(request)
 

@@ -83,6 +83,18 @@ def _pending_dir(repo_path: Path) -> Path:
     return d
 
 
+def set_superseded(repo_path: Path, old_fact: Fact, new_id: str) -> None:
+    """Persist supersession to the old fact's markdown so reindex keeps it hidden."""
+    if not old_fact.path:
+        return
+    p = Path(old_fact.path)
+    if not p.exists():
+        return
+    f = markdown_to_fact(p.read_text(), str(p))
+    f.superseded_by = new_id
+    p.write_text(fact_to_markdown(f))
+
+
 def write_pending_marker(repo_path: Path, fact_id: str) -> None:
     (_pending_dir(repo_path) / fact_id).write_text("")
 

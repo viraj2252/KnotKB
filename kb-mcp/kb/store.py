@@ -6,7 +6,7 @@ from typing import Callable, TYPE_CHECKING
 from kb.config import Config
 from kb.dedup import DedupConfig, decide
 from kb.embeddings import Embedder
-from kb.markdown import write_fact, append_log, write_pending_marker
+from kb.markdown import write_fact, append_log, write_pending_marker, set_superseded
 from kb.models import Fact
 from kb.util import content_hash, make_id, validate_scope, is_scratch
 
@@ -53,6 +53,8 @@ class KnowledgeBase:
             write_fact(self.repo_path, fact)  # sets fact.path
             append_log(self.repo_path,
                        f"## [{ts.date().isoformat()}] write | {scope} | {content[:60]}")
+            if action == "merged" and neighbors:
+                set_superseded(self.repo_path, neighbors[0][0], fact.id)
 
         try:
             self.store.upsert(fact, vector)

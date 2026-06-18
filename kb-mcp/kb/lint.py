@@ -5,7 +5,8 @@ from kb.markdown import read_all_facts, read_pending_markers
 
 
 def _normalize(tag: str) -> str:
-    return tag.lower().replace("-", "").replace("_", "").rstrip("s")
+    t = tag.lower().replace("-", "").replace("_", "")
+    return t[:-1] if t.endswith("s") else t
 
 
 def lint_report(repo_path: Path, config: Config) -> dict:

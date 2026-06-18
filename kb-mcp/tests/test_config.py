@@ -11,6 +11,7 @@ def test_defaults_applied_with_minimal_env():
     assert cfg.dedup_skip == 0.98
     assert cfg.scratch_ttl_seconds == 86400
     assert cfg.mcp_port == 8077
+    assert cfg.mcp_key == ""
     assert cfg.index_sources is False
 
 def test_overrides_from_env():

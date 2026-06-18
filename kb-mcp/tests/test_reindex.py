@@ -23,6 +23,20 @@ def test_reindex_rebuilds_from_markdown(tmp_path):
     res = kb2.search("alpha beta", scope=["global", "project:p"])
     assert any("alpha beta gamma" in r["content"] for r in res)
 
+def test_reindex_preserves_supersession(tmp_path):
+    cfg = Config(repo_path=tmp_path, db_url="x")
+    emb = FakeEmbedder()
+    kb = KnowledgeBase(InMemoryVectorStore(emb), emb, tmp_path, cfg, clock=lambda: FIXED)
+    first = kb.write("global", "alpha beta gamma delta epsilon zeta eta theta iota")
+    merged = kb.write("global", "alpha beta gamma delta epsilon zeta eta theta iota kappa")
+    assert merged["action"] == "merged"
+    fresh = InMemoryVectorStore(emb)
+    reindex(fresh, emb, tmp_path, cfg)
+    kb2 = KnowledgeBase(fresh, emb, tmp_path, cfg, clock=lambda: FIXED)
+    results = kb2.search("alpha beta", scope=["global"])
+    assert all(r["path"] != first["path"] for r in results)  # superseded fact stays hidden
+
+
 def test_reindex_clears_pending_markers(tmp_path):
     cfg = Config(repo_path=tmp_path, db_url="x")
     emb = FakeEmbedder()
