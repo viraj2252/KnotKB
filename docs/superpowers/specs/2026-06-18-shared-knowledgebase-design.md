@@ -72,10 +72,13 @@ If those demands did not exist, files-alone would be the correct, simpler answer
 ```
 ~/development/knowledge-base/
 ├── context/         about-me.md, about-flintt.md, priorities.md, preferences.md
-├── wiki/            Karpathy-style compiled pages + index.md  (human/LLM-curated)
+├── wiki/            curated synthesis pages + index.md  (human/LLM-curated)
+│   ├── ai-trends.md, startup-ideas.md, life-lessons.md, ...  (one per topic, emergent)
+│   └── index.md
 ├── decisions/       immutable, dated, append-only
-├── memory/          atomic facts written via memory_write
-│   ├── global/
+├── sources/         raw transcripts & dropped sources — immutable, read-not-edited
+├── memory/          atomic facts written via memory_write (flat, separated by tag)
+│   ├── global/      general facts/ideas; topic carried as tags, not folders
 │   └── project/<name>/
 ├── log.md           append-only chronological write/ingest log
 ├── index.md         top-level catalog
@@ -91,17 +94,22 @@ If those demands did not exist, files-alone would be the correct, simpler answer
 └── docs/superpowers/specs/
 ```
 
-### Three write-channels, kept distinct
+### Channels, kept distinct
 
 This makes concrete the reconciliation the prior notes worried about:
 
 - **`memory/`** — atomic facts, **machine-written by `memory_write`**, deduped. The runtime memory.
-- **`wiki/`** — curated synthesis (e.g. FI plan, SL strategy), authored by the `kb-ingest`
-  **skill** (Karpathy ingest loop). Never written by `memory_write`.
+- **`wiki/`** — curated synthesis, **one page per topic** (e.g. `ai-trends.md`, `startup-ideas.md`,
+  `life-lessons.md`, a project page), authored by the `kb-ingest` **skill** (Karpathy ingest loop).
+  Never written by `memory_write`.
 - **`decisions/`** — append-only human decision log.
+- **`sources/`** — raw transcripts and dropped sources. **Immutable** (read, never edited).
+  `kb-ingest` distills these into tagged `memory/` facts + the relevant `wiki/` page; they are
+  not dumped wholesale into `memory_write` (raw transcripts would wreck dedup and search quality).
 
-All three are **indexed** into pgvector, so `memory_search` retrieves across all of them;
-only `memory/` is **written** by the tool.
+`memory/`, `wiki/`, and `decisions/` are **indexed** into pgvector, so `memory_search` retrieves
+across all of them; only `memory/` is **written** by the tool. `sources/` is indexed optionally
+(it is the firehose — prefer searching the distilled layers).
 
 ## 5. The contract (two tools)
 
@@ -109,22 +117,50 @@ only `memory/` is **written** by the tool.
 memory_write(scope, content, tags=[], source=None) -> {id, path, action}
     # action ∈ {"created", "merged", "skipped"}
 
-memory_search(query, scope=None, k=8) -> [
+memory_search(query, scope=None, tags=None, k=8) -> [
     {content, score, scope, tags, source, ts, path}
 ]
 ```
 
+### Two orthogonal axes
+
+Separation works on **two independent dimensions** — conflating them is the trap:
+
+- **Scope = the boundary** (who owns it / default visibility): `global` · `project:<name>` ·
+  `agent:<name>:scratch`.
+- **Topic = the subject** (what it's about): carried as **free-form tags** (`ai-trends`,
+  `startup-idea`, `business-idea`, `life-lesson`, `radar`, …) and, once a topic accumulates,
+  a curated **`wiki/<topic>.md`** page.
+
+A startup idea and a life lesson are both `scope=global` but separated by *topic* (`tags`).
+Project-only knowledge is separated by *scope* (`project:<name>`). The `tags` filter on
+`memory_search` lets you pull a single topic (e.g. "show me startup ideas").
+
+Tags are free-form (no fixed taxonomy) to stay flexible; a `kb lint` health-check (§10) flags
+near-duplicate tag variants (`ai-trend` vs `ai-trends`) so the set doesn't drift.
+
+Example mapping:
+
+| What | Scope | Tags | Curated home |
+|---|---|---|---|
+| Project X discussion/decision | `project:X` | — | `memory/project/X/`, project wiki page |
+| Latest AI trends | `global` | `ai-trends` | `wiki/ai-trends.md` |
+| Next big thing to try | `global` | `radar` | `wiki/radar.md` |
+| Startup idea | `global` | `startup-idea` | `wiki/startup-ideas.md` |
+| Business idea | `global` | `business-idea` | `wiki/business-ideas.md` |
+| Life lesson | `global` | `life-lesson` | `wiki/life-lessons.md` |
+
 ### Scopes
 
-- `global` — cross-project facts
+- `global` — cross-project facts and general knowledge (separated internally by tag/topic)
 - `project:<name>` — project-scoped
 - `agent:<name>:scratch` — private working memory that must not pollute others
 
 ### Search default
 
-Defaults to `global` + the caller's project. An explicit `scope` argument widens or narrows.
-The caller's project is derived from the MCP session context (see §8 Open implementation
-details).
+Defaults to `global` + the caller's project. An explicit `scope` argument widens or narrows;
+an optional `tags` filter narrows to one or more topics. The caller's project is derived from
+the MCP session context (see §8 Open implementation details).
 
 ### Durability rule
 
@@ -151,7 +187,8 @@ pending-reindex marker records any row that failed to index for later recovery.
 1. Embed query.
 2. pgvector **hybrid**: vector cosine similarity + `tsvector` full-text, fused via
    **reciprocal-rank fusion (RRF)**.
-3. Apply scope filter (default `global` + caller project, unless overridden).
+3. Apply scope filter (default `global` + caller project, unless overridden) and, if given,
+   the `tags` topic filter.
 4. Exclude superseded rows. Return top-`k` with provenance.
 
 ### Reindex
@@ -213,6 +250,8 @@ Per the prior 5b reasoning, vector search is a library call; the engineering ris
 1. **Near-duplicate detection threshold** — create vs. merge vs. skip behave correctly at the boundary.
 2. **Scope-boundary enforcement** — an `agent:<a>:scratch` write never surfaces in agent `<b>`'s
    default search, nor in `global`/`project` searches.
+   - **Topic/tag filtering** — `memory_search(..., tags=["startup-idea"])` returns only matching
+     topics within the resolved scope.
 3. **Ranking determinism** — RRF fusion is stable/reproducible for a fixed corpus + query.
 4. **Markdown-write-survives-DB-down** — with pgvector unreachable, `memory_write` persists the
    markdown file and a pending-reindex marker.
@@ -228,7 +267,10 @@ Per the prior 5b reasoning, vector search is a library call; the engineering ris
 3. **Register to Claude Code and Hermes.** Sharing goes live; verify bidirectional
    (write via one tool, read via the other).
 4. **`kb-ingest` skill** at `~/.claude/skills/kb-ingest/` — the Karpathy ingest loop that
-   compiles sources into `wiki/`, updates `index.md`, appends `log.md`.
+   distills raw `sources/` (transcripts, drops) into tagged `memory/` facts + the relevant
+   topical `wiki/<topic>.md` page, updates `index.md`, appends `log.md`.
+5. **`kb lint`** maintenance command — health-check for tag drift (near-duplicate variants),
+   contradictions, stale claims, orphans, and gaps (the Karpathy lint operation).
 
 ## 11. Departures from prior notes (made explicit)
 
@@ -251,4 +293,7 @@ Per the prior 5b reasoning, vector search is a library call; the engineering ris
 - Exact dedup similarity threshold (start ~0.92 cosine, tune via tests).
 - Markdown file granularity in `memory/` (one file per fact vs. dated append files) — affects git
   noise vs. diffability.
+- `kb lint` tag-hygiene rules — how aggressively to flag/merge near-duplicate tag variants, and
+  whether merging is suggested-only or automatic.
+- Whether `sources/` is indexed into pgvector at all, or kept search-excluded (distilled layers only).
 ```
