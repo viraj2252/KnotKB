@@ -60,3 +60,18 @@ def test_markdown_survives_db_down(tmp_path):
     assert Path(r["path"]).exists()           # truth persisted
     from kb.markdown import read_pending_markers
     assert r["id"] in read_pending_markers(tmp_path)
+
+def test_mark_superseded_failure_is_not_swallowed(tmp_path):
+    import pytest
+    from kb.markdown import read_pending_markers
+    class FlakyStore(InMemoryVectorStore):
+        def mark_superseded(self, old_id, new_id):
+            raise RuntimeError("supersede failed")
+    cfg = Config(repo_path=tmp_path, db_url="x")
+    kb = KnowledgeBase(FlakyStore(FakeEmbedder()), FakeEmbedder(), tmp_path, cfg,
+                       clock=lambda: FIXED)
+    kb.write("global", "alpha beta gamma delta epsilon zeta eta theta iota")
+    with pytest.raises(RuntimeError):
+        kb.write("global", "alpha beta gamma delta epsilon zeta eta theta iota kappa")
+    # upsert succeeded, so NO misleading pending marker should be written
+    assert read_pending_markers(tmp_path) == []

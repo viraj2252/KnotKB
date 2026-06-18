@@ -56,10 +56,12 @@ class KnowledgeBase:
 
         try:
             self.store.upsert(fact, vector)
-            if action == "merged" and neighbors:
-                self.store.mark_superseded(neighbors[0][0].id, fact.id)
         except Exception:
             if not scratch:
                 write_pending_marker(self.repo_path, fact.id)
+            return {"id": fact.id, "path": fact.path, "action": action}
+
+        if action == "merged" and neighbors:
+            self.store.mark_superseded(neighbors[0][0].id, fact.id)
 
         return {"id": fact.id, "path": fact.path, "action": action}
