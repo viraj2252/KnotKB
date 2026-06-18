@@ -1,0 +1,38 @@
+services:
+  kb-postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kb}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kb}
+      POSTGRES_DB: ${POSTGRES_DB:-kb}
+    volumes:
+      - kb-pgdata:/var/lib/postgresql/data
+    networks:
+      - hermes-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kb}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  kb-mcp:
+    build: ./kb-mcp
+    env_file: .env
+    environment:
+      KB_REPO_PATH: /kb
+    volumes:
+      - ./:/kb            # the KB repo (markdown source of truth); ordinary host dir, no flock
+    ports:
+      - "127.0.0.1:${KB_MCP_PORT:-8077}:8077"
+    depends_on:
+      kb-postgres:
+        condition: service_healthy
+    networks:
+      - hermes-net
+
+volumes:
+  kb-pgdata:              # local-only, never synced (rebuild via `make reindex`)
+
+networks:
+  hermes-net:
+    external: true

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
@@ -65,7 +65,9 @@ def read_all_facts(repo_path: Path, include_sources: bool = False) -> list[Fact]
             else:
                 # non-fact curated page (e.g. wiki index): index as plain content
                 facts.append(Fact(id=str(p), scope="global", content=text.strip(),
-                                  tags=[], source=str(p), ts=None, content_hash=""))  # type: ignore[arg-type]
+                                  tags=[], source=str(p),
+                                  ts=datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc),
+                                  content_hash=""))
     return facts
 
 
