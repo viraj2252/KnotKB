@@ -24,7 +24,8 @@ scoped build — a markdown KB plus the thinnest possible query/write layer over
 |---|---|---|
 | Sharing model | **One shared MCP server over a markdown source of truth** | A single mediating server makes sharing bidirectional and serializes writes, dissolving the concurrency argument that drove the prior two-store split |
 | Source of truth | **Markdown + git** | Human-readable, diffable, revertable; matches the LLM-Wiki-v3 instinct (markdown is truth, indexes are disposable) |
-| Search backend | **pgvector (local container)** from day one | Postgres is not yet in the stack, so we provision a local pgvector container — free, self-contained, no cloud dependency; swappable to Neon/Supabase via connection string |
+| Search backend | **pgvector (local Docker container)** from day one | Self-contained, free, no cloud DB (no Neon/Supabase). Named Docker volume, local only |
+| Durability / sync | **Private git remote + one-way Google Drive mirror**; DB is rebuild-only | Sync the markdown *truth*, never the live DB volume (object-storage sync of a live Postgres data dir corrupts it). The index is disposable — `kb reindex` rebuilds it |
 | Embeddings | **Local, in-process** (`fastembed`, ONNX CPU, `bge-small-en-v1.5`, 384-dim) | No API/subscription cost; no GPU required |
 | Language | **Python** | Matches the existing `claude-proxy` (FastAPI) and the Python/TDD preference |
 | Transport | **Long-lived HTTP MCP server** | Single mediator process → serialized writes, no per-client stdio subprocesses |
@@ -217,6 +218,29 @@ the pgvector tables. The index is disposable by design; this is also the DB-outa
   `memory_write` behind Hermes `approvals` (`mode: manual`) + `command_allowlist`, **not** the
   proxy (which has no gate).
 
+### Durability, sync & portability
+
+**Principle: sync the truth (markdown), never the index (DB).** A live Postgres data
+directory must not be file-synced to object storage — Drive/rclone will capture it mid-write
+and produce a corrupt, unrestorable database. The index is disposable, so it never needs syncing.
+
+- **pgvector volume** — local Docker **named volume**, **not synced, not backed up**. On a new
+  machine or after a wipe: `make up && kb reindex` rebuilds it from markdown. No DB backup job. [Certain]
+- **Markdown KB (truth)** — durability via **two layers**:
+  1. **Primary: a private git remote.** The working repo stays at `~/development/knowledge-base`
+     (outside any Drive live-sync folder) and pushes to a private remote. Full version history,
+     proper multi-machine conflict handling.
+  2. **Secondary: a one-way mirror to Google Drive.** A scheduled job (`rclone copy` or
+     equivalent) mirrors the markdown into Drive, **excluding `.git/`** and the
+     `kb-mcp/`/`docker-compose` infra. Drive holds a plain always-current snapshot; git holds
+     history. One-way (KB → Drive) to avoid sync conflicts. [Likely]
+- **Why not Drive-sync the whole folder directly:** Drive live-syncing `.git/` corrupts the
+  repo, and continuous sync would fight the MCP's writes. Keeping the live repo out of Drive's
+  sync root and pushing a filtered mirror avoids both. [Certain]
+- **`sources/` raw transcripts** are git-tracked too (they're the immutable record) and ride
+  the same git-remote + Drive mirror. If they get large, switch `sources/` to Drive-only +
+  `.gitignore` (revisit during planning).
+
 ### Draft `~/.claude/CLAUDE.md`
 ```markdown
 # Global preferences
@@ -271,6 +295,9 @@ Per the prior 5b reasoning, vector search is a library call; the engineering ris
    topical `wiki/<topic>.md` page, updates `index.md`, appends `log.md`.
 5. **`kb lint`** maintenance command — health-check for tag drift (near-duplicate variants),
    contradictions, stale claims, orphans, and gaps (the Karpathy lint operation).
+6. **Durability wiring** — add a private git remote; set up the scheduled one-way Drive mirror
+   (`rclone copy`, excluding `.git/` and infra). Confirm rebuild path: wipe the DB volume,
+   `kb reindex`, verify search recovers.
 
 ## 11. Departures from prior notes (made explicit)
 
@@ -296,4 +323,6 @@ Per the prior 5b reasoning, vector search is a library call; the engineering ris
 - `kb lint` tag-hygiene rules — how aggressively to flag/merge near-duplicate tag variants, and
   whether merging is suggested-only or automatic.
 - Whether `sources/` is indexed into pgvector at all, or kept search-excluded (distilled layers only).
+- Drive mirror cadence + mechanism (cron `rclone copy` vs. a git `post-commit` hook) and whether
+  large `sources/` should move to Drive-only + `.gitignore`.
 ```
