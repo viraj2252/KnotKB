@@ -15,7 +15,8 @@ def fact_to_markdown(fact: Fact) -> str:
         "scope": fact.scope,
         "tags": fact.tags,
         "source": fact.source,
-        "ts": fact.ts.isoformat(),
+        "ts": fact.ts.isoformat() if fact.ts else None,
+        "expires_at": fact.expires_at.isoformat() if fact.expires_at else None,
         "content_hash": fact.content_hash,
         "superseded_by": fact.superseded_by,
     }
@@ -34,6 +35,7 @@ def markdown_to_fact(text: str, path: str) -> Fact:
         tags=list(meta.get("tags") or []),
         source=meta.get("source"),
         ts=datetime.fromisoformat(meta["ts"]) if meta.get("ts") else None,  # type: ignore[arg-type]
+        expires_at=datetime.fromisoformat(meta["expires_at"]) if meta.get("expires_at") else None,  # type: ignore[arg-type]
         content_hash=meta.get("content_hash", ""),
         superseded_by=meta.get("superseded_by"),
         path=path,
@@ -69,7 +71,7 @@ def read_all_facts(repo_path: Path, include_sources: bool = False) -> list[Fact]
 
 def append_log(repo_path: Path, line: str) -> None:
     log = repo_path / "log.md"
-    with log.open("a") as fh:
+    with log.open("a", encoding="utf-8") as fh:
         fh.write(line.rstrip() + "\n")
 
 
@@ -85,7 +87,7 @@ def write_pending_marker(repo_path: Path, fact_id: str) -> None:
 
 def read_pending_markers(repo_path: Path) -> list[str]:
     d = _pending_dir(repo_path)
-    return [p.name for p in d.iterdir() if p.is_file()]
+    return sorted([p.name for p in d.iterdir() if p.is_file()])
 
 
 def clear_pending_marker(repo_path: Path, fact_id: str) -> None:

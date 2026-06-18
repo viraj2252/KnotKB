@@ -56,3 +56,9 @@ def test_pending_markers(tmp_path):
     assert sorted(read_pending_markers(tmp_path)) == ["id1", "id2"]
     clear_pending_marker(tmp_path, "id1")
     assert read_pending_markers(tmp_path) == ["id2"]
+
+def test_round_trip_preserves_expires_at():
+    f = make_fact()
+    f.expires_at = datetime(2026, 6, 19, 9, 0, 0, tzinfo=timezone.utc)
+    back = markdown_to_fact(fact_to_markdown(f), path="x.md")
+    assert back.expires_at == f.expires_at
