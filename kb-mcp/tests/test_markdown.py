@@ -87,3 +87,12 @@ def test_plain_page_slug_is_stem(tmp_path):
     facts = read_all_facts(tmp_path)
     page = [f for f in facts if f.source and f.source.endswith("ai-trends.md")][0]
     assert page.slug == "ai-trends"
+
+
+def test_obsidian_normalized_datetime_ts_is_parsed(tmp_path):
+    # Obsidian unquotes our ISO ts string, so YAML loads it as a native datetime/date.
+    # markdown_to_fact must accept both without crashing.
+    dt = markdown_to_fact("---\nid: a\nscope: global\nts: 2026-06-20 15:05:40+00:00\n---\nbody", "a.md")
+    assert dt.ts is not None and dt.ts.year == 2026
+    d = markdown_to_fact("---\nid: b\nscope: global\nts: 2026-06-20\n---\nbody", "b.md")
+    assert d.ts is not None and d.ts.tzinfo is not None  # date coerced to tz-aware datetime

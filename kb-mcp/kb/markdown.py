@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, date, timezone
 from pathlib import Path
 
 import yaml
@@ -17,6 +17,19 @@ def _file_mtime(path: str | None) -> datetime:
         return datetime.fromtimestamp(Path(path).stat().st_mtime, tz=timezone.utc)
     except (OSError, TypeError):
         return datetime.now(timezone.utc)
+
+
+def _coerce_dt(value) -> datetime | None:
+    """Parse a front-matter datetime tolerantly. Our writer emits an ISO string,
+    but Obsidian normalizes front-matter and YAML then loads timestamps as native
+    datetime/date objects — accept all three (str, datetime, date)."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, date):
+        return datetime(value.year, value.month, value.day, tzinfo=timezone.utc)
+    return datetime.fromisoformat(str(value))
 
 
 def fact_to_markdown(fact: Fact) -> str:
@@ -46,8 +59,8 @@ def markdown_to_fact(text: str, path: str) -> Fact:
         content=body.strip(),
         tags=list(meta.get("tags") or []),
         source=meta.get("source"),
-        ts=datetime.fromisoformat(meta["ts"]) if meta.get("ts") else _file_mtime(path),
-        expires_at=datetime.fromisoformat(meta["expires_at"]) if meta.get("expires_at") else None,  # type: ignore[arg-type]
+        ts=_coerce_dt(meta.get("ts")) or _file_mtime(path),
+        expires_at=_coerce_dt(meta.get("expires_at")),
         content_hash=meta.get("content_hash", ""),
         superseded_by=meta.get("superseded_by"),
         path=path,
