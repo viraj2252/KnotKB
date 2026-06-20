@@ -55,7 +55,7 @@ class OpenAIWireClient:
 
 
 def synthesize(kb, question: str, llm: LLMClient, scope=None, k: int | None = None) -> dict:
-    k = k or kb.config.synth_max_facts
+    k = k if k is not None else kb.config.synth_max_facts
     results = kb.search(question, scope=scope, k=k)
     if not results:
         return {"answer": "insufficient evidence in the knowledge base",

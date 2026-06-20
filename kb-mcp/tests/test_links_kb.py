@@ -22,3 +22,16 @@ def test_orphans_lists_unlinked(tmp_path):
     kb = KnowledgeBase(InMemoryVectorStore(emb), emb, tmp_path, cfg, clock=lambda: FIXED)
     kb.write("global", "an unlinked standalone fact")
     assert any("unlinked standalone" in r["content"] for r in kb.orphans())
+
+def test_orphans_excludes_superseded(tmp_path):
+    from kb.models import Fact
+    from kb.markdown import write_fact
+    from datetime import datetime, timezone
+    cfg = Config(repo_path=tmp_path, db_url="x")
+    emb = FakeEmbedder()
+    kb = KnowledgeBase(InMemoryVectorStore(emb), emb, tmp_path, cfg, clock=lambda: FIXED)
+    dead = Fact(id="20260101000000-dead", scope="global", content="a superseded unlinked fact",
+                ts=datetime(2026, 1, 1, tzinfo=timezone.utc), content_hash="d",
+                superseded_by="somenewid")
+    write_fact(tmp_path, dead)
+    assert all("superseded unlinked" not in r["content"] for r in kb.orphans())

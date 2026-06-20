@@ -81,7 +81,8 @@ class KnowledgeBase:
         }
 
     def _facts(self) -> list[Fact]:
-        return read_all_facts(self.repo_path, include_sources=self.config.index_sources)
+        facts = read_all_facts(self.repo_path, include_sources=self.config.index_sources)
+        return [f for f in facts if not f.superseded_by]
 
     def get_backlinks(self, slug: str) -> list[dict]:
         facts = self._facts()

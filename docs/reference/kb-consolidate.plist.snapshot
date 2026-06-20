@@ -7,7 +7,7 @@
   <array>
     <string>/bin/bash</string>
     <string>-lc</string>
-    <string>cd $HOME/development/hermes-test && docker compose --env-file .env exec -T kb-mcp kb consolidate --apply</string>
+    <string>cd "$HOME/development/hermes-test" && docker compose --env-file .env exec -T kb-mcp kb consolidate --apply</string>
   </array>
   <key>StartCalendarInterval</key><dict><key>Hour</key><integer>3</integer><key>Minute</key><integer>30</integer></dict>
   <key>StandardOutPath</key><string>/tmp/kb-consolidate.log</string>

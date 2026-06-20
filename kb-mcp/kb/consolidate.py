@@ -5,6 +5,8 @@ from kb.lint import _normalize
 from kb.markdown import read_all_facts, set_superseded, append_log
 
 
+# Assumes L2-normalized embedding vectors (FastEmbedder/FakeEmbedder normalize),
+# so a plain dot product equals cosine similarity.
 def _cos(u, v):
     return sum(x * y for x, y in zip(u, v))
 
@@ -12,7 +14,7 @@ def _cos(u, v):
 def consolidate(store, embedder, repo_path, config, apply: bool = False,
                 now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
-    facts = read_all_facts(repo_path, include_sources=False)
+    facts = [f for f in read_all_facts(repo_path, include_sources=False) if not f.superseded_by]
     report = {"near_dups": [], "auto_merged": [], "stale": [],
               "orphans": [], "tag_drift": []}
     if not facts:

@@ -74,7 +74,7 @@ def create_app(config: Config):
         return kb.get_links(slug)
 
     @mcp.tool()
-    def ask(question: str, scope=None, k: int = config.synth_max_facts) -> dict:
+    def ask(question: str, scope=None, k: int | None = None) -> dict:
         """Answer a question from the KB with cited sources. Returns {answer, citations, used_facts}."""
         from kb.synth import synthesize, OpenAIWireClient
         llm = OpenAIWireClient(config.synth_base_url, config.synth_key)

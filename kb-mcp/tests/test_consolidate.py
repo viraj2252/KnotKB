@@ -13,10 +13,22 @@ def build(tmp_path, store):
     return KnowledgeBase(store, emb, tmp_path, cfg, clock=lambda: FIXED), cfg, emb
 
 def test_reports_without_apply(tmp_path):
+    from kb.models import Fact
+    from kb.markdown import write_fact
+    from datetime import datetime, timezone
     store = InMemoryVectorStore(FakeEmbedder())
-    kb, cfg, emb = build(tmp_path, store)
-    kb.write("global", "alpha beta gamma delta epsilon zeta eta theta iota")
-    kb.write("global", "alpha beta gamma delta epsilon zeta eta theta iota kappa")  # near-dup
+    cfg = Config(repo_path=tmp_path, db_url="x")
+    emb = FakeEmbedder()
+    # Inject two active near-dup facts directly (bypassing write's dedup merge)
+    a = Fact(id="20260101000000-aaa", scope="global",
+             content="alpha beta gamma delta epsilon zeta eta theta iota",
+             ts=datetime(2026, 1, 1, tzinfo=timezone.utc), content_hash="aaa")
+    b = Fact(id="20260102000000-bbb", scope="global",
+             content="alpha beta gamma delta epsilon zeta eta theta iota kappa",
+             ts=datetime(2026, 1, 2, tzinfo=timezone.utc), content_hash="bbb")
+    write_fact(tmp_path, a)
+    write_fact(tmp_path, b)
+    reindex(store, emb, tmp_path, cfg)
     report = consolidate(store, emb, tmp_path, cfg, apply=False, now=FIXED)
     assert report["near_dups"]            # detected
     assert report["auto_merged"] == []    # nothing changed without apply
@@ -57,3 +69,18 @@ def test_staleness_report_only(tmp_path):
     assert any("old standalone" in s["content"] for s in report["stale"])
     # report-only: the stale fact is NOT superseded
     assert report["auto_merged"] == []
+
+def test_consolidate_ignores_superseded(tmp_path):
+    from kb.models import Fact
+    from kb.markdown import write_fact
+    from datetime import datetime, timezone
+    store = InMemoryVectorStore(FakeEmbedder())
+    cfg = Config(repo_path=tmp_path, db_url="x")
+    emb = FakeEmbedder()
+    dead = Fact(id="20260101000000-dead", scope="global", content="alpha beta gamma delta",
+                ts=datetime(2026, 1, 1, tzinfo=timezone.utc), content_hash="d",
+                superseded_by="somenewid")
+    write_fact(tmp_path, dead)
+    reindex(store, emb, tmp_path, cfg)
+    report = consolidate(store, emb, tmp_path, cfg, apply=True, now=FIXED)
+    assert "20260101000000-dead" not in str(report)  # superseded fact never reported
