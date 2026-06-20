@@ -16,3 +16,6 @@ class Fact:
     expires_at: datetime | None = None
     slug: str | None = None
     aliases: list[str] = field(default_factory=list)
+    entities: list[str] = field(default_factory=list)
+    entity_type: str | None = None
+    extracted: bool = False

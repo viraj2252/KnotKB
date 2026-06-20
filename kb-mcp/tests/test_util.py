@@ -32,3 +32,9 @@ def test_scope_dir():
 def test_scope_dir_rejects_scratch():
     with pytest.raises(ValueError):
         scope_dir("agent:claude:scratch")
+
+def test_slugify():
+    from kb.util import slugify
+    assert slugify("Brand Engagement") == "brand-engagement"
+    assert slugify("VJ Kothalawala!") == "vj-kothalawala"
+    assert slugify("  ") == "entity"

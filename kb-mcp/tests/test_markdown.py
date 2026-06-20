@@ -96,3 +96,20 @@ def test_obsidian_normalized_datetime_ts_is_parsed(tmp_path):
     assert dt.ts is not None and dt.ts.year == 2026
     d = markdown_to_fact("---\nid: b\nscope: global\nts: 2026-06-20\n---\nbody", "b.md")
     assert d.ts is not None and d.ts.tzinfo is not None  # date coerced to tz-aware datetime
+
+def test_entity_fields_round_trip(tmp_path):
+    f = make_fact()
+    f.entities = ["viraj", "flintt"]
+    f.entity_type = "project"
+    f.extracted = True
+    back = markdown_to_fact(fact_to_markdown(f), path="x.md")
+    assert back.entities == ["viraj", "flintt"]
+    assert back.entity_type == "project"
+    assert back.extracted is True
+
+def test_entities_dir_is_indexed(tmp_path):
+    (tmp_path / "entities").mkdir()
+    (tmp_path / "entities" / "flintt.md").write_text("---\ntype: project\nslug: flintt\n---\n# Flintt")
+    facts = read_all_facts(tmp_path)
+    page = [f for f in facts if f.path and f.path.endswith("flintt.md")][0]
+    assert page.entity_type == "project"

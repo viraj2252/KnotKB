@@ -6,7 +6,7 @@ import yaml
 from kb.models import Fact
 from kb.util import scope_dir
 
-_INDEXED_DIRS = ("memory", "wiki", "decisions")
+_INDEXED_DIRS = ("memory", "wiki", "decisions", "entities")
 
 
 def _file_mtime(path: str | None) -> datetime:
@@ -44,6 +44,9 @@ def fact_to_markdown(fact: Fact) -> str:
         "superseded_by": fact.superseded_by,
         "slug": fact.slug,
         "aliases": fact.aliases,
+        "entities": fact.entities,
+        "type": fact.entity_type,
+        "extracted": fact.extracted,
     }
     front = yaml.safe_dump(meta, sort_keys=True, default_flow_style=False).strip()
     return f"---\n{front}\n---\n\n{fact.content}\n"
@@ -66,6 +69,9 @@ def markdown_to_fact(text: str, path: str) -> Fact:
         path=path,
         slug=meta.get("slug"),
         aliases=list(meta.get("aliases") or []),
+        entities=list(meta.get("entities") or []),
+        entity_type=meta.get("type"),
+        extracted=bool(meta.get("extracted", False)),
     )
 
 

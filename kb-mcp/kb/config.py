@@ -24,6 +24,11 @@ class Config:
     synth_max_facts: int = 8
     stale_days: int = 180
     automerge: float = 0.97
+    extract_enabled: bool = True
+    extract_model: str = ""
+    extract_max_facts: int = 50
+    entity_types: tuple[str, ...] = ("person", "company", "project", "topic")
+    backlink_boost: float = 0.3
 
     @staticmethod
     def from_env(env: Mapping[str, str]) -> "Config":
@@ -51,4 +56,11 @@ class Config:
             synth_max_facts=int(env.get("KB_SYNTH_MAX_FACTS", "8")),
             stale_days=int(env.get("KB_STALE_DAYS", "180")),
             automerge=float(env.get("KB_AUTOMERGE", "0.97")),
+            extract_enabled=flag("KB_EXTRACT_ENABLED", True),
+            extract_model=env.get("KB_EXTRACT_MODEL", ""),
+            extract_max_facts=int(env.get("KB_EXTRACT_MAX_FACTS", "50")),
+            entity_types=tuple(t.strip() for t in
+                               env.get("KB_ENTITY_TYPES", "person,company,project,topic").split(",")
+                               if t.strip()),
+            backlink_boost=float(env.get("KB_BACKLINK_BOOST", "0.3")),
         )

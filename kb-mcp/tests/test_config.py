@@ -52,3 +52,20 @@ def test_spec_a_overrides():
     assert cfg.synth_model == "claude-opus-4-8"
     assert cfg.automerge == 0.95
     assert cfg.stale_days == 30
+
+def test_spec_b_defaults():
+    cfg = Config.from_env({"KB_REPO_PATH": "/kb", "KB_DB_URL": "x"})
+    assert cfg.extract_enabled is True
+    assert cfg.extract_model == ""
+    assert cfg.extract_max_facts == 50
+    assert cfg.entity_types == ("person", "company", "project", "topic")
+    assert cfg.backlink_boost == 0.3
+
+def test_spec_b_overrides():
+    cfg = Config.from_env({"KB_REPO_PATH": "/kb", "KB_DB_URL": "x",
+                           "KB_EXTRACT_ENABLED": "false", "KB_EXTRACT_MAX_FACTS": "5",
+                           "KB_ENTITY_TYPES": "person,project", "KB_BACKLINK_BOOST": "0"})
+    assert cfg.extract_enabled is False
+    assert cfg.extract_max_facts == 5
+    assert cfg.entity_types == ("person", "project")
+    assert cfg.backlink_boost == 0.0

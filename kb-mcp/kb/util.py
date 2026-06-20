@@ -1,5 +1,6 @@
 import hashlib
 import re
+import unicodedata
 from datetime import datetime
 
 _PROJECT_RE = re.compile(r"^project:[A-Za-z0-9._-]+$")
@@ -31,3 +32,9 @@ def scope_dir(scope: str) -> str:
     if scope.startswith("project:"):
         return "project/" + scope.split(":", 1)[1]
     raise ValueError(f"scope has no markdown dir: {scope!r}")
+
+
+def slugify(name: str) -> str:
+    s = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode()
+    s = re.sub(r"[^A-Za-z0-9]+", "-", s).strip("-").lower()
+    return s or "entity"
