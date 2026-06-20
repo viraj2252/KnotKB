@@ -91,3 +91,14 @@ class FakeReranker:
                   for fact, _ in candidates]
         scored.sort(key=lambda fs: (-fs[1], fs[0].id))
         return scored
+
+
+class FakeLLM:
+    """Records calls; returns a canned reply (default an entities JSON array)."""
+    def __init__(self, reply='[{"name":"Flintt","type":"project","aliases":["Flint"]}]'):
+        self.reply = reply
+        self.calls = []
+
+    def complete(self, messages, model):
+        self.calls.append((messages, model))
+        return self.reply
