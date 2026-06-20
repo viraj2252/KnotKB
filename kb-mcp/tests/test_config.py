@@ -27,3 +27,28 @@ def test_overrides_from_env():
     assert cfg.mcp_port == 9000
     assert cfg.mcp_key == "secret"
     assert cfg.index_sources is True
+
+def test_spec_a_defaults():
+    cfg = Config.from_env({"KB_REPO_PATH": "/kb", "KB_DB_URL": "postgresql://x"})
+    assert cfg.rerank_enabled is True
+    assert cfg.rerank_model == "BAAI/bge-reranker-base"
+    assert cfg.rerank_candidates == 30
+    assert cfg.synth_base_url == "http://claude-proxy:8000/v1"
+    assert cfg.synth_model == "claude-sonnet-4-6"
+    assert cfg.synth_key == ""
+    assert cfg.synth_max_facts == 8
+    assert cfg.stale_days == 180
+    assert cfg.automerge == 0.97
+
+def test_spec_a_overrides():
+    cfg = Config.from_env({
+        "KB_REPO_PATH": "/kb", "KB_DB_URL": "postgresql://x",
+        "KB_RERANK_ENABLED": "false", "KB_RERANK_CANDIDATES": "10",
+        "KB_SYNTH_MODEL": "claude-opus-4-8", "KB_AUTOMERGE": "0.95",
+        "KB_STALE_DAYS": "30",
+    })
+    assert cfg.rerank_enabled is False
+    assert cfg.rerank_candidates == 10
+    assert cfg.synth_model == "claude-opus-4-8"
+    assert cfg.automerge == 0.95
+    assert cfg.stale_days == 30

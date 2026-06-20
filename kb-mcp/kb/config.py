@@ -15,6 +15,15 @@ class Config:
     mcp_key: str = ""
     mcp_port: int = 8077
     index_sources: bool = False
+    rerank_enabled: bool = True
+    rerank_model: str = "BAAI/bge-reranker-base"
+    rerank_candidates: int = 30
+    synth_base_url: str = "http://claude-proxy:8000/v1"
+    synth_model: str = "claude-sonnet-4-6"
+    synth_key: str = ""
+    synth_max_facts: int = 8
+    stale_days: int = 180
+    automerge: float = 0.97
 
     @staticmethod
     def from_env(env: Mapping[str, str]) -> "Config":
@@ -33,4 +42,13 @@ class Config:
             mcp_key=env.get("KB_MCP_KEY", ""),
             mcp_port=int(env.get("KB_MCP_PORT", "8077")),
             index_sources=flag("KB_INDEX_SOURCES", False),
+            rerank_enabled=flag("KB_RERANK_ENABLED", True),
+            rerank_model=env.get("KB_RERANK_MODEL", "BAAI/bge-reranker-base"),
+            rerank_candidates=int(env.get("KB_RERANK_CANDIDATES", "30")),
+            synth_base_url=env.get("KB_SYNTH_BASE_URL", "http://claude-proxy:8000/v1"),
+            synth_model=env.get("KB_SYNTH_MODEL", "claude-sonnet-4-6"),
+            synth_key=env.get("KB_SYNTH_KEY", ""),
+            synth_max_facts=int(env.get("KB_SYNTH_MAX_FACTS", "8")),
+            stale_days=int(env.get("KB_STALE_DAYS", "180")),
+            automerge=float(env.get("KB_AUTOMERGE", "0.97")),
         )
