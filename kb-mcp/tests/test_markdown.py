@@ -62,3 +62,13 @@ def test_round_trip_preserves_expires_at():
     f.expires_at = datetime(2026, 6, 19, 9, 0, 0, tzinfo=timezone.utc)
     back = markdown_to_fact(fact_to_markdown(f), path="x.md")
     assert back.expires_at == f.expires_at
+
+
+def test_frontmatter_without_ts_falls_back_to_mtime(tmp_path):
+    # Obsidian stamps `created`/`updated` (not our `ts`) onto pages — must not yield ts=None
+    d = tmp_path / "wiki"; d.mkdir()
+    f = d / "page.md"
+    f.write_text("---\ncreated: 2026-06-20T23:38\nupdated: 2026-06-20T23:40\n---\n# Page\nbody")
+    facts = read_all_facts(tmp_path)
+    page = [x for x in facts if x.path and x.path.endswith("page.md")][0]
+    assert page.ts is not None

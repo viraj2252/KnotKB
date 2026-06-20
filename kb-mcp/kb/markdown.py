@@ -9,6 +9,16 @@ from kb.util import scope_dir
 _INDEXED_DIRS = ("memory", "wiki", "decisions")
 
 
+def _file_mtime(path: str | None) -> datetime:
+    """Tz-aware UTC mtime for a path; falls back to now() if unavailable.
+    Used when a page has front-matter (e.g. Obsidian's created/updated) but no
+    `ts` key — Obsidian stamps every note, so this prevents ts=None on reindex."""
+    try:
+        return datetime.fromtimestamp(Path(path).stat().st_mtime, tz=timezone.utc)
+    except (OSError, TypeError):
+        return datetime.now(timezone.utc)
+
+
 def fact_to_markdown(fact: Fact) -> str:
     meta = {
         "id": fact.id,
@@ -34,7 +44,7 @@ def markdown_to_fact(text: str, path: str) -> Fact:
         content=body.strip(),
         tags=list(meta.get("tags") or []),
         source=meta.get("source"),
-        ts=datetime.fromisoformat(meta["ts"]) if meta.get("ts") else None,  # type: ignore[arg-type]
+        ts=datetime.fromisoformat(meta["ts"]) if meta.get("ts") else _file_mtime(path),
         expires_at=datetime.fromisoformat(meta["expires_at"]) if meta.get("expires_at") else None,  # type: ignore[arg-type]
         content_hash=meta.get("content_hash", ""),
         superseded_by=meta.get("superseded_by"),
