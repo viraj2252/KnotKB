@@ -11,3 +11,14 @@ __pycache__/
 # Pending-reindex markers are runtime state, not source of truth
 .kb/pending/
 .superpowers/
+
+# Real KB content never lives in this public repo — it lives in the Obsidian vault.
+/context/
+/memory/
+/wiki/
+/decisions/
+/sources/
+/log.md
+/index.md
+/kb-discussion.md
+.obsidian/
