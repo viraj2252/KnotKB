@@ -17,6 +17,22 @@ def test_reindex_subcommand_uses_injected_kb(tmp_path, monkeypatch, capsys):
     assert rc == 0
     assert "indexed" in capsys.readouterr().out.lower()
 
+def test_consolidate_subcommand(tmp_path, monkeypatch, capsys):
+    from kb.config import Config
+    from kb.store import KnowledgeBase
+    from tests.fakes import FakeEmbedder, InMemoryVectorStore
+    import datetime as _dt
+    cfg = Config(repo_path=tmp_path, db_url="x")
+    emb = FakeEmbedder()
+    store = InMemoryVectorStore(emb)
+    kb = KnowledgeBase(store, emb, tmp_path, cfg,
+                       clock=lambda: _dt.datetime(2026, 6, 20, tzinfo=_dt.timezone.utc))
+    kb.write("global", "a standalone orphan fact")
+    monkeypatch.setattr(cli, "_load", lambda: (cfg, store, emb))
+    rc = cli.main(["consolidate"])
+    assert "orphans=" in capsys.readouterr().out
+    assert rc == 1  # orphan reported
+
 def test_lint_subcommand(tmp_path, monkeypatch, capsys):
     from kb.config import Config
     from kb.store import KnowledgeBase
