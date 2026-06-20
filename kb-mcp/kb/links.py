@@ -39,8 +39,8 @@ def build_link_index(facts: list[Fact]) -> dict:
             backlinks.setdefault(t, []).append(f.id)
 
     def has_inbound(f: Fact) -> bool:
-        # Check if this fact's ID appears as a direct wikilink target
-        if backlinks.get(f.id):
+        # Check if this fact's slug appears as a direct wikilink target
+        if backlinks.get(fact_slug(f)):
             return True
         # Check if any of its aliases appear as a wikilink target
         return any(backlinks.get(a) for a in (f.aliases or []))

@@ -17,13 +17,17 @@ def test_fact_slug_precedence():
     assert fact_slug(f("3", "x")) == "3"
 
 def test_build_link_index_backlinks_and_orphans():
-    page = f("p", "topic page", slug="ai-trends")
-    a = f("a", "see [[ai-trends]]")
-    b = f("b", "links via alias [[AI Trends]]", )
-    target = f("t", "the target", slug="ai-trends2", aliases=["AI Trends"])
+    page = f("p", "topic page", slug="ai-trends")          # linked by slug below -> not orphan
+    a = f("a", "see [[ai-trends]]")                         # links out; nothing links to it -> orphan
+    b = f("b", "links via alias [[AI Trends]]")            # links out; nothing links to it -> orphan
+    target = f("t", "the target", slug="ai-trends2", aliases=["AI Trends"])  # linked by alias -> not orphan
     idx = build_link_index([page, a, b, target])
     assert "a" in idx["backlinks"]["ai-trends"]
     assert "b" in idx["backlinks"]["AI Trends"]
-    # page has no inbound links -> orphan; a and b have no inbound -> orphan; target linked by alias -> not orphan
-    assert "p" in idx["orphans"]
+    # page is targeted by [[ai-trends]] (its slug) -> NOT an orphan
+    assert "p" not in idx["orphans"]
+    # target is targeted by [[AI Trends]] (its alias) -> NOT an orphan
     assert "t" not in idx["orphans"]
+    # a and b have no inbound links -> orphans
+    assert "a" in idx["orphans"]
+    assert "b" in idx["orphans"]
