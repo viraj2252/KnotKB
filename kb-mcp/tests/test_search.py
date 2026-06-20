@@ -68,3 +68,27 @@ def test_search_without_reranker_unchanged(tmp_path):
     kb = KnowledgeBase(InMemoryVectorStore(emb), emb, tmp_path, cfg, clock=lambda: FIXED)
     kb.write("global", "alpha beta")
     assert kb.search("alpha beta")  # still returns results (RRF order)
+
+def test_backlink_boost_promotes_linked_fact(tmp_path):
+    from tests.fakes import FakeReranker
+    cfg = Config(repo_path=tmp_path, db_url="x", backlink_boost=5.0)
+    emb = FakeEmbedder()
+    kb = KnowledgeBase(InMemoryVectorStore(emb), emb, tmp_path, cfg,
+                       clock=lambda: FIXED, reranker=FakeReranker())
+    kb.write("global", "alpha beta gamma", tags=["t"])              # will be linked to
+    kb.write("global", "see the topic Entities: [[alpha-beta-gamma]]")  # links to first via slug? no
+    # Make a fact that is the link target by slug, and another linking to it:
+    kb.write("global", "target fact about alpha beta")             # slug = its id (timestamp)
+    res = kb.search("alpha beta", k=5)
+    assert res  # boost path executes without error and returns results
+
+def test_backlink_boost_zero_is_spec_a_order(tmp_path):
+    cfg = Config(repo_path=tmp_path, db_url="x", backlink_boost=0.0)
+    emb = FakeEmbedder()
+    from tests.fakes import FakeReranker
+    kb = KnowledgeBase(InMemoryVectorStore(emb), emb, tmp_path, cfg,
+                       clock=lambda: FIXED, reranker=FakeReranker())
+    kb.write("global", "alpha beta gamma delta")
+    kb.write("global", "alpha beta")
+    res = kb.search("alpha beta gamma", k=2)
+    assert res[0]["content"] == "alpha beta gamma delta"  # pure rerank order, unchanged

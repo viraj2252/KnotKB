@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from datetime import datetime, timezone, timedelta
 from typing import Callable, TYPE_CHECKING
 
@@ -122,20 +123,26 @@ class KnowledgeBase:
         now = self.clock()
         qvec = self.embedder.embed([query])[0]
         if self.reranker is not None and self.config.rerank_enabled:
-            cand = self.store.search(qvec, query, scopes=scopes, tags=tags,
-                                     k=self.config.rerank_candidates, now=now)
-            hits = self.reranker.rerank(query, cand)[:k]
+            hits = self.reranker.rerank(query, self.store.search(
+                qvec, query, scopes=scopes, tags=tags,
+                k=self.config.rerank_candidates, now=now))
         else:
-            hits = self.store.search(qvec, query, scopes=scopes, tags=tags, k=k, now=now)
+            hits = self.store.search(qvec, query, scopes=scopes, tags=tags,
+                                     k=max(k, self.config.rerank_candidates), now=now)
+
+        if self.config.backlink_boost > 0 and hits:
+            idx = build_link_index(self._facts())
+            boosted = []
+            for f, score in hits:
+                inbound = len(idx["backlinks"].get(fact_slug(f), []))
+                boosted.append((f, score + self.config.backlink_boost * math.log1p(inbound)))
+            hits = sorted(boosted, key=lambda fs: -fs[1])
+        hits = hits[:k]
         return [
             {
-                "content": f.content,
-                "score": round(score, 6),
-                "scope": f.scope,
-                "tags": f.tags,
-                "source": f.source,
-                "ts": f.ts.isoformat() if f.ts else None,
-                "path": f.path,
+                "content": f.content, "score": round(score, 6), "scope": f.scope,
+                "tags": f.tags, "source": f.source,
+                "ts": f.ts.isoformat() if f.ts else None, "path": f.path,
             }
             for f, score in hits
         ]
