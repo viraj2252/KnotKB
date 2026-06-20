@@ -74,6 +74,21 @@ def create_app(config: Config):
         return kb.get_links(slug)
 
     @mcp.tool()
+    def find_experts(query: str, entity_type: str = "person", k: int = 5, scope=None) -> list[dict]:
+        """Find the entities (default people) most associated with facts matching the query."""
+        return kb.find_experts(query, entity_type=entity_type, k=k, scope=scope)
+
+    @mcp.tool()
+    def get_entity(slug: str) -> dict:
+        """Get an entity page plus the facts that mention it and co-occurring entities."""
+        return kb.get_entity(slug)
+
+    @mcp.tool()
+    def find_orphans() -> dict:
+        """List facts with no inbound links and entity pages mentioned <=1x."""
+        return kb.find_orphans()
+
+    @mcp.tool()
     def ask(question: str, scope=None, k: int | None = None) -> dict:
         """Answer a question from the KB with cited sources. Returns {answer, citations, used_facts}."""
         from kb.synth import synthesize, OpenAIWireClient

@@ -6,7 +6,8 @@ from typing import Callable, TYPE_CHECKING
 from kb.config import Config
 from kb.dedup import DedupConfig, decide
 from kb.embeddings import Embedder
-from kb.links import build_link_index
+from kb.discovery import rank_experts
+from kb.links import build_link_index, fact_slug
 from kb.markdown import (write_fact, append_log, write_pending_marker,
                          set_superseded, read_all_facts)
 from kb.models import Fact
@@ -138,3 +139,55 @@ class KnowledgeBase:
             }
             for f, score in hits
         ]
+
+    def find_experts(self, query, entity_type="person", k=5, scope=None) -> list[dict]:
+        results = self.search(query, scope=scope, k=max(k * 3, 10))
+        facts = self._facts()
+        idx = build_link_index(facts)
+        by_path = {f.path: f for f in facts if f.path}
+        out = []
+        for slug, ent in rank_experts(results, by_path, idx, entity_type, k):
+            d = self._result(ent)
+            d["slug"] = slug
+            out.append(d)
+        return out
+
+    def get_entity(self, slug) -> dict:
+        facts = self._facts()
+        idx = build_link_index(facts)
+        byid = {f.id: f for f in facts}
+        ent = idx["by_slug"].get(slug)
+        mention_ids = idx["backlinks"].get(slug, [])
+        mentions = [self._result(byid[i]) for i in mention_ids if i in byid]
+        related: dict[str, int] = {}
+        for i in mention_ids:
+            for dst in idx["forward"].get(i, []):
+                if dst != slug and idx["by_slug"].get(dst) is not None and \
+                        idx["by_slug"][dst].entity_type is not None:
+                    related[dst] = related.get(dst, 0) + 1
+        related_slugs = sorted(related, key=lambda s: (-related[s], s))
+        return {
+            "entity": (self._result(ent) | {"slug": slug}) if ent is not None else None,
+            "mentions": mentions,
+            "related": [self._result(idx["by_slug"][s]) | {"slug": s} for s in related_slugs],
+        }
+
+    def find_orphans(self) -> dict:
+        facts = self._facts()
+        idx = build_link_index(facts)
+        byid = {f.id: f for f in facts}
+        fact_orphans, entity_orphans = [], []
+        for i in idx["orphans"]:
+            f = byid.get(i)
+            if f is None:
+                continue
+            (entity_orphans if f.entity_type is not None else fact_orphans).append(
+                self._result(f) | {"slug": fact_slug(f)})
+        # also flag low-connectivity entity pages (mentioned <= 1x)
+        for f in facts:
+            if f.entity_type is not None:
+                slug = fact_slug(f)
+                if len(idx["backlinks"].get(slug, [])) <= 1 and \
+                        not any(e["slug"] == slug for e in entity_orphans):
+                    entity_orphans.append(self._result(f) | {"slug": slug})
+        return {"facts": fact_orphans, "entities": entity_orphans}
