@@ -80,3 +80,14 @@ class InMemoryVectorStore:
 
     def clear(self) -> None:
         self._rows.clear()
+
+
+class FakeReranker:
+    """Deterministic reranker for tests: scores by query-token overlap."""
+
+    def rerank(self, query, candidates):
+        q = set(query.lower().split())
+        scored = [(fact, float(len(q & set(fact.content.lower().split()))))
+                  for fact, _ in candidates]
+        scored.sort(key=lambda fs: (-fs[1], fs[0].id))
+        return scored
