@@ -31,6 +31,8 @@ Non-goals (explicitly skipped — platform/team or domain-specific, per the GBra
 | Consolidation auto-apply | **Near-duplicate merges only** (strict threshold); staleness/orphans/tag-drift **report-only** | "Old" ≠ "wrong"; age-based auto-supersede would silently drop valid facts |
 | Consolidation safety net | **Git history** (markdown is tracked) | Every auto-change is a reviewable, revertable diff |
 | Schedule | **launchd** → `docker compose exec kb-mcp kb consolidate` | Same mechanism as the Drive mirror; one scheduling story |
+| Obsidian | **First-class vault compatibility** (the repo *is* the vault) | Markdown-as-truth means Obsidian is a free human UI; wikilinks light up its graph/backlinks |
+| Linkable slugs | **Human filename = slug** for `wiki/`,`decisions/`,`context/`; atomic facts keep timestamp ids but may opt into `slug`/`aliases` | Resolves §11; gives Obsidian readable titles and native linking |
 
 ## 3. Architecture
 
@@ -53,7 +55,9 @@ All four features live behind the **existing** MCP server (`kb/server.py`) and C
 - **Create** `kb/consolidate.py` — `consolidate()` + report writer.
 - **Modify** `kb/store.py` — `search` gains an optional reranker; expose link/orphan helpers.
 - **Modify** `kb/db.py` — link-edge storage + queries; orphan query.
-- **Modify** `kb/markdown.py` — extract wikilinks on read/parse.
+- **Modify** `kb/markdown.py` — extract wikilinks on read/parse; round-trip `slug`/`aliases` frontmatter.
+- **Modify** `kb/models.py` — `Fact` gains `slug: str|None` and `aliases: list[str]`.
+- **Modify** `.gitignore` — add `.obsidian/`.
 - **Modify** `kb/server.py` — register `ask`, `get_links`, `get_backlinks` tools.
 - **Modify** `kb/cli.py` — add `kb consolidate`.
 - **Modify** `kb/config.py` — new env knobs (below).
@@ -98,12 +102,29 @@ Flow:
 
 ## 6. Feature: Wikilinks
 
-- `kb/links.py` `parse_wikilinks(text) -> list[str]` extracts `[[slug]]` and `[[slug|alias]]` (alias ignored for resolution; target = slug).
+- `kb/links.py` `parse_wikilinks(text) -> list[str]` extracts `[[slug]]` and `[[slug|alias]]` (display alias ignored for resolution; target = slug).
 - A **link edge store**: a table `links(src_id text, dst_slug text)` (or equivalent), rebuilt from markdown on every `write` and on `reindex`. Derived/disposable, like the vector index.
-- Resolution: `dst_slug` matches a fact/page by its slug (filename stem / `id`); unresolved links are retained as dangling (reported by consolidation, not an error).
+- **Slug model (resolves §11, Obsidian-aligned):**
+  - `wiki/`, `decisions/`, `context/` pages → slug = **filename stem** (these are human-authored, human-named; e.g. `wiki/ai-trends.md` → `ai-trends`, linkable as `[[ai-trends]]`).
+  - atomic `memory/` facts → keep timestamped ids, but may opt into a `slug:` and/or `aliases:` frontmatter field to become linkable by a human name.
+  - Resolution order for `dst_slug`: (1) file stem, (2) `slug` frontmatter, (3) any `aliases` entry. Unresolved links are retained as **dangling** (reported by consolidation, not an error).
+- **`Fact` gains optional `slug: str|None` and `aliases: list[str]`** (default none/empty), round-tripped in frontmatter (Obsidian reads `aliases` natively).
 - **MCP tools:** `get_links(slug)` (outgoing), `get_backlinks(slug)` (incoming).
 - **Orphan query:** facts/pages with zero inbound links — exposed for consolidation.
 - **No ranking boost in Spec A.** Links are navigational + orphan signal only. [Certain]
+
+## 6b. Obsidian vault compatibility
+
+The repo **is** an Obsidian vault — point Obsidian at `~/development/knowledge-base/` and you get graph view, backlinks, tag pane, search, and editing over the same markdown the agents use. Obsidian is the **human** view; `kb-mcp`/pgvector remains the **agent** API. No change to the agent layer.
+
+What this spec does to make it first-class:
+- **Readable titles + native linking** via the slug model in §6 (human filenames for `wiki/`/`decisions/`/`context/`; `slug`/`aliases` frontmatter for facts that opt in). `[[wikilinks]]` are Obsidian-native, so the backlink index renders in Obsidian's graph/backlinks panels.
+- **`aliases:` frontmatter** is Obsidian's own field — used both by our link resolver and by Obsidian's "link by alias" / search.
+- **Gitignore `.obsidian/`** (Obsidian's per-vault config/workspace dir). `kb reindex` already ignores it (it reads only `memory/wiki/decisions/sources`), so it is never indexed.
+
+Out of scope (note, don't build): Obsidian Sync (we already have git remote + Drive mirror; Obsidian Git plugin is an optional user choice), and Obsidian plugins/templates (a possible later spec).
+
+Coexistence caveat: Obsidian edits, `memory_write`, and nightly consolidation all write the same folder. For a single user collisions are rare; **git history is the backstop** for any overwrite. [Likely]
 
 ## 7. Feature: Nightly consolidation — `kb consolidate`
 
@@ -128,7 +149,7 @@ Flow:
 ## 9. Testing (TDD focus)
 
 1. **Reranker** — `FakeReranker` reorders deterministically; `search` returns reranked top-k when enabled and RRF order when disabled; candidate-N honored.
-2. **Wikilinks** — `parse_wikilinks` handles `[[slug]]`, `[[slug|alias]]`, multiple/none; backlink index correct after write + after reindex; `get_backlinks` returns inbound; orphan query finds zero-inbound facts.
+2. **Wikilinks** — `parse_wikilinks` handles `[[slug]]`, `[[slug|alias]]`, multiple/none; backlink index correct after write + after reindex; `get_backlinks` returns inbound; orphan query finds zero-inbound facts; resolution hits file-stem, `slug`, and `aliases` (incl. an alias-only match); `slug`/`aliases` round-trip through markdown.
 3. **Synthesis** — `ask` with an **injected fake LLM client**: correct prompt assembly (numbered, source-tagged context), citation `[n]`→provenance mapping, return shape; no-facts path returns "insufficient evidence" **without** calling the LLM; endpoint-error path returns a clear error.
 4. **Consolidation** — near-dup ≥ `KB_AUTOMERGE` is auto-merged + superseded in markdown + survives reindex (superseded stays hidden); staleness/orphans/tag-drift are reported but **not** mutated; report file written; `--apply` vs report-only modes behave correctly.
 
@@ -144,6 +165,6 @@ Flow:
 
 - Exact `fastembed` reranker API surface/model id (confirm `TextCrossEncoder` + `BAAI/bge-reranker-base` availability; pick a fallback like `Xenova/ms-marco-MiniLM-L-6-v2` if needed).
 - Link store: a dedicated `links` table vs. a JSON column on `facts` — pick during planning (lean: dedicated table, rebuilt on reindex).
-- Slug identity for resolution: filename stem vs. a `slug` frontmatter field (current ids are timestamped; wikilinks likely target human slugs — may need a `slug`/`title` field on durable facts, or resolve against `path` stem). Resolve in planning; may add an optional `slug` to `Fact`.
+- Slug identity: **resolved** in §6 (file stem for pages; optional `slug`/`aliases` for facts). Remaining detail: exact precedence + collision handling when two pages share a stem across folders.
 - Citation parsing robustness (model emits `[n]` markers) — map by index; tolerate missing/extra markers.
 - `.kb/reports/` location + retention.
