@@ -55,3 +55,8 @@ def test_synthesize_llm_error_returns_error(tmp_path):
         def complete(self, messages, model): raise RuntimeError("proxy down")
     out = synthesize(kb, "alpha beta", Boom())
     assert "error" in out
+
+def test_openai_wire_client_builds_url():
+    from kb.synth import OpenAIWireClient
+    c = OpenAIWireClient("http://claude-proxy:8000/v1", "")
+    assert c.url == "http://claude-proxy:8000/v1/chat/completions"

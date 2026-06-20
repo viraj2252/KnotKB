@@ -69,6 +69,13 @@ def create_app(config: Config):
         """List outgoing [[wikilinks]] from the page/fact with the given slug."""
         return kb.get_links(slug)
 
+    @mcp.tool()
+    def ask(question: str, scope=None, k: int = config.synth_max_facts) -> dict:
+        """Answer a question from the KB with cited sources. Returns {answer, citations, used_facts}."""
+        from kb.synth import synthesize, OpenAIWireClient
+        llm = OpenAIWireClient(config.synth_base_url, config.synth_key)
+        return synthesize(kb, question, llm, scope=scope, k=k)
+
     app = mcp.streamable_http_app()
 
     async def health(request):
