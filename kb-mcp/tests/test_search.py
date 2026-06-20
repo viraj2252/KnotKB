@@ -70,17 +70,29 @@ def test_search_without_reranker_unchanged(tmp_path):
     assert kb.search("alpha beta")  # still returns results (RRF order)
 
 def test_backlink_boost_promotes_linked_fact(tmp_path):
+    from kb.models import Fact
+    from kb.markdown import write_fact
+    from kb.reindex import reindex
     from tests.fakes import FakeReranker
+    from datetime import datetime, timezone
+    ts = datetime(2026, 6, 21, tzinfo=timezone.utc)
     cfg = Config(repo_path=tmp_path, db_url="x", backlink_boost=5.0)
     emb = FakeEmbedder()
-    kb = KnowledgeBase(InMemoryVectorStore(emb), emb, tmp_path, cfg,
-                       clock=lambda: FIXED, reranker=FakeReranker())
-    kb.write("global", "alpha beta gamma", tags=["t"])              # will be linked to
-    kb.write("global", "see the topic Entities: [[alpha-beta-gamma]]")  # links to first via slug? no
-    # Make a fact that is the link target by slug, and another linking to it:
-    kb.write("global", "target fact about alpha beta")             # slug = its id (timestamp)
-    res = kb.search("alpha beta", k=5)
-    assert res  # boost path executes without error and returns results
+    store = InMemoryVectorStore(emb)
+    # two equally-relevant facts; only `target` is linked to (by `linker`)
+    target = Fact(id="20260101000000-t", scope="global", content="alpha beta gamma",
+                  slug="target", ts=ts, content_hash="t")
+    other = Fact(id="20260101000000-o", scope="global", content="alpha beta gamma",
+                 slug="other", ts=ts, content_hash="o")
+    linker = Fact(id="20260101000000-l", scope="global", content="see [[target]]",
+                  ts=ts, content_hash="l")
+    for f in (target, other, linker):
+        write_fact(tmp_path, f)
+    reindex(store, emb, tmp_path, cfg)
+    kb = KnowledgeBase(store, emb, tmp_path, cfg, clock=lambda: ts, reranker=FakeReranker())
+    res = kb.search("alpha beta gamma", k=3)
+    paths = [r["path"] for r in res]
+    assert paths.index(target.path) < paths.index(other.path)  # boost promotes the linked fact
 
 def test_backlink_boost_zero_is_spec_a_order(tmp_path):
     cfg = Config(repo_path=tmp_path, db_url="x", backlink_boost=0.0)
