@@ -46,3 +46,21 @@ def test_lint_subcommand(tmp_path, monkeypatch, capsys):
     rc = cli.main(["lint"])
     assert rc == 1
     assert "tag-drift" in capsys.readouterr().out
+
+def test_extract_subcommand(tmp_path, monkeypatch, capsys):
+    from kb.config import Config
+    from kb.models import Fact
+    from kb.markdown import write_fact
+    from tests.fakes import FakeEmbedder, InMemoryVectorStore, FakeLLM
+    import datetime as _dt
+    cfg = Config(repo_path=tmp_path, db_url="x")
+    emb = FakeEmbedder()
+    store = InMemoryVectorStore(emb)
+    write_fact(tmp_path, Fact(id="20260101000000-a", scope="project:flintt",
+                              content="Flintt ships campaigns",
+                              ts=_dt.datetime(2026, 1, 1, tzinfo=_dt.timezone.utc), content_hash="a"))
+    monkeypatch.setattr(cli, "_load", lambda: (cfg, store, emb))
+    monkeypatch.setattr(cli, "_llm", lambda c: FakeLLM())
+    rc = cli.main(["extract"])
+    assert rc == 0
+    assert "facts_extracted=1" in capsys.readouterr().out

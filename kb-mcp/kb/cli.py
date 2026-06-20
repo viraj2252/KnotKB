@@ -16,6 +16,11 @@ def _load():
     return cfg, store, FastEmbedder(model=cfg.embed_model, dim=cfg.embed_dim)
 
 
+def _llm(cfg):
+    from kb.synth import OpenAIWireClient
+    return OpenAIWireClient(cfg.synth_base_url, cfg.synth_key)
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="kb")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -23,6 +28,7 @@ def main(argv=None) -> int:
     sub.add_parser("lint", help="health-check tags and index state")
     cons = sub.add_parser("consolidate", help="report KB health; auto-merge near-dups with --apply")
     cons.add_argument("--apply", action="store_true", help="apply safe auto-merges")
+    sub.add_parser("extract", help="run LLM entity extraction over un-extracted facts")
     args = parser.parse_args(argv)
 
     cfg, store, embedder = _load()
@@ -42,13 +48,21 @@ def main(argv=None) -> int:
         return 1 if issues else 0
     if args.cmd == "consolidate":
         from kb.consolidate import consolidate
-        report = consolidate(store, embedder, cfg.repo_path, cfg, apply=args.apply)
-        print(f"auto_merged={len(report['auto_merged'])} near_dups={len(report['near_dups'])} "
+        llm = _llm(cfg) if cfg.extract_enabled else None
+        report = consolidate(store, embedder, cfg.repo_path, cfg, apply=args.apply, llm=llm)
+        print(f"extracted={report['extracted']['facts_extracted']} "
+              f"auto_merged={len(report['auto_merged'])} near_dups={len(report['near_dups'])} "
               f"stale={len(report['stale'])} orphans={len(report['orphans'])} "
               f"tag_drift={len(report['tag_drift'])}")
-        report_only = len(report["near_dups"]) - len(report["auto_merged"]) \
-            + len(report["stale"]) + len(report["orphans"]) + len(report["tag_drift"])
+        report_only = (len(report["near_dups"]) - len(report["auto_merged"])
+                       + len(report["stale"]) + len(report["orphans"]) + len(report["tag_drift"]))
         return 1 if report_only else 0
+    if args.cmd == "extract":
+        from kb.extract import extract_over_facts
+        counts = extract_over_facts(cfg.repo_path, _llm(cfg), cfg)
+        print(f"facts_extracted={counts['facts_extracted']} "
+              f"entities_created={counts['entities_created']} skipped={counts['skipped']}")
+        return 0
     return 1
 
 

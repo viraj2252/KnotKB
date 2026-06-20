@@ -12,11 +12,15 @@ def _cos(u, v):
 
 
 def consolidate(store, embedder, repo_path, config, apply: bool = False,
-                now: datetime | None = None) -> dict:
+                now: datetime | None = None, llm=None) -> dict:
     now = now or datetime.now(timezone.utc)
-    facts = [f for f in read_all_facts(repo_path, include_sources=False) if not f.superseded_by]
     report = {"near_dups": [], "auto_merged": [], "stale": [],
-              "orphans": [], "tag_drift": []}
+              "orphans": [], "tag_drift": [],
+              "extracted": {"facts_extracted": 0, "entities_created": 0, "skipped": 0}}
+    if llm is not None and config.extract_enabled:
+        from kb.extract import extract_over_facts
+        report["extracted"] = extract_over_facts(repo_path, llm, config)
+    facts = [f for f in read_all_facts(repo_path, include_sources=False) if not f.superseded_by]
     if not facts:
         return report
 
@@ -70,6 +74,7 @@ def _write_report(repo_path, now, report, apply) -> None:
     d.mkdir(parents=True, exist_ok=True)
     p = d / f"{now.date().isoformat()}.md"
     lines = [f"# Consolidation {now.isoformat()} (apply={apply})", ""]
+    lines.append(f"## extracted\n- {report['extracted']}\n")
     for key in ("auto_merged", "near_dups", "stale", "orphans", "tag_drift"):
         lines.append(f"## {key} ({len(report[key])})")
         for item in report[key]:

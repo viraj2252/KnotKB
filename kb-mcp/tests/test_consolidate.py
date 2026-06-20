@@ -84,3 +84,25 @@ def test_consolidate_ignores_superseded(tmp_path):
     reindex(store, emb, tmp_path, cfg)
     report = consolidate(store, emb, tmp_path, cfg, apply=True, now=FIXED)
     assert "20260101000000-dead" not in str(report)  # superseded fact never reported
+
+
+def test_consolidate_runs_extract_phase(tmp_path):
+    from kb.models import Fact
+    from kb.markdown import write_fact
+    from datetime import datetime, timezone
+    from tests.fakes import FakeLLM
+    store = InMemoryVectorStore(FakeEmbedder())
+    cfg = Config(repo_path=tmp_path, db_url="x")
+    emb = FakeEmbedder()
+    write_fact(tmp_path, Fact(id="20260101000000-a", scope="project:flintt",
+                              content="Flintt ships campaigns", ts=datetime(2026,1,1,tzinfo=timezone.utc),
+                              content_hash="a"))
+    report = consolidate(store, emb, tmp_path, cfg, apply=True, now=FIXED, llm=FakeLLM())
+    assert report["extracted"]["facts_extracted"] == 1
+    assert (tmp_path / "entities" / "flintt.md").exists()
+
+def test_consolidate_no_llm_skips_extract(tmp_path):
+    store = InMemoryVectorStore(FakeEmbedder())
+    cfg = Config(repo_path=tmp_path, db_url="x")
+    report = consolidate(store, FakeEmbedder(), tmp_path, cfg, apply=True, now=FIXED)
+    assert report["extracted"] == {"facts_extracted": 0, "entities_created": 0, "skipped": 0}
