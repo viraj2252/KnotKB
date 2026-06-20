@@ -59,6 +59,16 @@ def create_app(config: Config):
         """Search the knowledge base. scope: str | list[str] | None (defaults to ['global'])."""
         return kb.search(query, scope=scope, tags=tags, k=k)
 
+    @mcp.tool()
+    def get_backlinks(slug: str) -> list[dict]:
+        """List facts/pages that link to the given slug via [[wikilinks]]."""
+        return kb.get_backlinks(slug)
+
+    @mcp.tool()
+    def get_links(slug: str) -> list[dict]:
+        """List outgoing [[wikilinks]] from the page/fact with the given slug."""
+        return kb.get_links(slug)
+
     app = mcp.streamable_http_app()
 
     async def health(request):

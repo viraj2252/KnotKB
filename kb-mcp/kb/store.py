@@ -6,7 +6,9 @@ from typing import Callable, TYPE_CHECKING
 from kb.config import Config
 from kb.dedup import DedupConfig, decide
 from kb.embeddings import Embedder
-from kb.markdown import write_fact, append_log, write_pending_marker, set_superseded
+from kb.links import build_link_index
+from kb.markdown import (write_fact, append_log, write_pending_marker,
+                         set_superseded, read_all_facts)
 from kb.models import Fact
 from kb.util import content_hash, make_id, validate_scope, is_scratch
 
@@ -70,6 +72,40 @@ class KnowledgeBase:
             self.store.mark_superseded(neighbors[0][0].id, fact.id)
 
         return {"id": fact.id, "path": fact.path, "action": action}
+
+    def _result(self, fact: Fact) -> dict:
+        return {
+            "content": fact.content, "scope": fact.scope, "tags": fact.tags,
+            "source": fact.source, "ts": fact.ts.isoformat() if fact.ts else None,
+            "path": fact.path, "slug": fact.slug,
+        }
+
+    def _facts(self) -> list[Fact]:
+        return read_all_facts(self.repo_path, include_sources=self.config.index_sources)
+
+    def get_backlinks(self, slug: str) -> list[dict]:
+        facts = self._facts()
+        idx = build_link_index(facts)
+        byid = {f.id: f for f in facts}
+        return [self._result(byid[i]) for i in idx["backlinks"].get(slug, []) if i in byid]
+
+    def get_links(self, slug: str) -> list[dict]:
+        facts = self._facts()
+        idx = build_link_index(facts)
+        src = idx["by_slug"].get(slug)
+        if src is None:
+            return []
+        out = []
+        for dst in idx["forward"].get(src.id, []):
+            target = idx["by_slug"].get(dst)
+            out.append({"slug": dst, "resolved": self._result(target) if target else None})
+        return out
+
+    def orphans(self) -> list[dict]:
+        facts = self._facts()
+        idx = build_link_index(facts)
+        byid = {f.id: f for f in facts}
+        return [self._result(byid[i]) for i in idx["orphans"] if i in byid]
 
     def search(self, query: str, scope=None, tags=None, k: int = 8) -> list[dict]:
         if scope is None:
