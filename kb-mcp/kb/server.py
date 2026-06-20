@@ -30,7 +30,11 @@ def build_kb(config: Config) -> KnowledgeBase:
     store = PgVectorStore(connect(config.db_url), dim=config.embed_dim)
     store.ensure_schema()
     embedder = FastEmbedder(model=config.embed_model, dim=config.embed_dim)
-    return KnowledgeBase(store, embedder, config.repo_path, config)
+    reranker = None
+    if config.rerank_enabled:
+        from kb.rerank import FastReranker
+        reranker = FastReranker(model=config.rerank_model)
+    return KnowledgeBase(store, embedder, config.repo_path, config, reranker=reranker)
 
 
 def create_app(config: Config):
