@@ -1,0 +1,50 @@
+import re
+from typing import Protocol
+
+from kb.models import Fact
+
+_SYSTEM = (
+    "You answer strictly from the numbered context below. Cite the sources you "
+    "use as [n] inline, matching the numbers in the context. If the context does "
+    "not contain the answer, reply exactly 'insufficient evidence'. Be concise."
+)
+
+
+class LLMClient(Protocol):
+    def complete(self, messages: list[dict], model: str) -> str: ...
+
+
+def build_messages(question: str, facts: list[Fact]) -> list[dict]:
+    lines = []
+    for i, f in enumerate(facts, 1):
+        src = f.path or f.source or f.scope
+        lines.append(f"[{i}] ({src}) {f.content}")
+    user = f"Question: {question}\n\nContext:\n" + "\n".join(lines)
+    return [{"role": "system", "content": _SYSTEM},
+            {"role": "user", "content": user}]
+
+
+def parse_citations(answer: str, facts: list[Fact]) -> list[dict]:
+    nums = sorted({int(n) for n in re.findall(r"\[(\d+)\]", answer or "")})
+    cites = []
+    for n in nums:
+        if 1 <= n <= len(facts):
+            f = facts[n - 1]
+            cites.append({"n": n, "path": f.path, "scope": f.scope})
+    return cites
+
+
+def synthesize(kb, question: str, llm: LLMClient, scope=None, k: int | None = None) -> dict:
+    k = k or kb.config.synth_max_facts
+    results = kb.search(question, scope=scope, k=k)
+    if not results:
+        return {"answer": "insufficient evidence in the knowledge base",
+                "citations": [], "used_facts": []}
+    facts = [Fact(id="", scope=r["scope"], content=r["content"],
+                  source=r["source"], path=r["path"]) for r in results]
+    try:
+        answer = llm.complete(build_messages(question, facts), kb.config.synth_model)
+    except Exception as e:  # proxy down / timeout
+        return {"error": f"synthesis failed: {e}"}
+    return {"answer": answer, "citations": parse_citations(answer, facts),
+            "used_facts": results}

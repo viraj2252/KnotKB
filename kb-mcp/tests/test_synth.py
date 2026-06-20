@@ -1,0 +1,57 @@
+from datetime import datetime, timezone
+from kb.config import Config
+from kb.store import KnowledgeBase
+from kb.synth import build_messages, parse_citations, synthesize
+from kb.models import Fact
+from tests.fakes import FakeEmbedder, InMemoryVectorStore
+
+FIXED = datetime(2026, 6, 20, tzinfo=timezone.utc)
+
+class FakeLLM:
+    def __init__(self, reply="From the notes, X is true [1].", record=None):
+        self.reply, self.calls = reply, (record if record is not None else [])
+    def complete(self, messages, model):
+        self.calls.append((messages, model))
+        return self.reply
+
+def build_kb(tmp_path):
+    cfg = Config(repo_path=tmp_path, db_url="x")
+    emb = FakeEmbedder()
+    return KnowledgeBase(InMemoryVectorStore(emb), emb, tmp_path, cfg, clock=lambda: FIXED)
+
+def test_build_messages_numbers_and_tags_sources():
+    facts = [Fact(id="1", scope="global", content="alpha", path="/kb/memory/global/1.md")]
+    msgs = build_messages("what is alpha?", facts)
+    assert msgs[0]["role"] == "system"
+    assert "[1]" in msgs[1]["content"] and "alpha" in msgs[1]["content"]
+
+def test_parse_citations_maps_markers():
+    facts = [Fact(id="1", scope="global", content="a", path="p1"),
+             Fact(id="2", scope="project:x", content="b", path="p2")]
+    cites = parse_citations("yes [2] and also [1].", facts)
+    assert {c["n"] for c in cites} == {1, 2}
+    assert {c["path"] for c in cites} == {"p1", "p2"}
+
+def test_synthesize_happy_path(tmp_path):
+    kb = build_kb(tmp_path)
+    kb.write("global", "alpha beta gamma fact")
+    llm = FakeLLM(reply="alpha beta per the note [1].")
+    out = synthesize(kb, "tell me about alpha beta", llm)
+    assert out["answer"] == "alpha beta per the note [1]."
+    assert out["citations"] and out["citations"][0]["n"] == 1
+    assert len(llm.calls) == 1
+
+def test_synthesize_no_facts_skips_llm(tmp_path):
+    kb = build_kb(tmp_path)
+    llm = FakeLLM()
+    out = synthesize(kb, "nothing stored about this", llm)
+    assert "insufficient evidence" in out["answer"]
+    assert out["citations"] == [] and llm.calls == []
+
+def test_synthesize_llm_error_returns_error(tmp_path):
+    kb = build_kb(tmp_path)
+    kb.write("global", "alpha beta gamma fact")
+    class Boom:
+        def complete(self, messages, model): raise RuntimeError("proxy down")
+    out = synthesize(kb, "alpha beta", Boom())
+    assert "error" in out
