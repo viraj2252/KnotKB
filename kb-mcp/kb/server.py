@@ -35,9 +35,17 @@ def build_kb(config: Config) -> KnowledgeBase:
 
 def create_app(config: Config):
     from mcp.server.fastmcp import FastMCP
+    from mcp.server.transport_security import TransportSecuritySettings
 
     kb = build_kb(config)
-    mcp = FastMCP("kb")
+    # The streamable-HTTP transport's DNS-rebinding protection rejects any
+    # request whose Host header isn't an allowlisted localhost (returns 421
+    # Misdirected Request). Hermes reaches us by service name (kb-mcp:8077)
+    # over the bridge network, so that check would block it. We disable it
+    # because our own bearer-token auth (BearerAuthMiddleware) is the real
+    # gate and the server is bound to the private network / 127.0.0.1.
+    mcp = FastMCP("kb", transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=False))
 
     @mcp.tool()
     def memory_write(scope: str, content: str, tags: list[str] | None = None,
