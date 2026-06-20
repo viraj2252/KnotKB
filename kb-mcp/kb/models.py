@@ -14,3 +14,5 @@ class Fact:
     superseded_by: str | None = None
     path: str | None = None
     expires_at: datetime | None = None
+    slug: str | None = None
+    aliases: list[str] = field(default_factory=list)

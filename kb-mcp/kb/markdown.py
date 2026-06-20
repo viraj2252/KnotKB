@@ -29,6 +29,8 @@ def fact_to_markdown(fact: Fact) -> str:
         "expires_at": fact.expires_at.isoformat() if fact.expires_at else None,
         "content_hash": fact.content_hash,
         "superseded_by": fact.superseded_by,
+        "slug": fact.slug,
+        "aliases": fact.aliases,
     }
     front = yaml.safe_dump(meta, sort_keys=True, default_flow_style=False).strip()
     return f"---\n{front}\n---\n\n{fact.content}\n"
@@ -49,6 +51,8 @@ def markdown_to_fact(text: str, path: str) -> Fact:
         content_hash=meta.get("content_hash", ""),
         superseded_by=meta.get("superseded_by"),
         path=path,
+        slug=meta.get("slug"),
+        aliases=list(meta.get("aliases") or []),
     )
 
 
@@ -77,7 +81,7 @@ def read_all_facts(repo_path: Path, include_sources: bool = False) -> list[Fact]
                 facts.append(Fact(id=str(p), scope="global", content=text.strip(),
                                   tags=[], source=str(p),
                                   ts=datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc),
-                                  content_hash=""))
+                                  content_hash="", slug=p.stem))
     return facts
 
 

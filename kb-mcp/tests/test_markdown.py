@@ -72,3 +72,18 @@ def test_frontmatter_without_ts_falls_back_to_mtime(tmp_path):
     facts = read_all_facts(tmp_path)
     page = [x for x in facts if x.path and x.path.endswith("page.md")][0]
     assert page.ts is not None
+
+def test_slug_aliases_round_trip(tmp_path):
+    f = make_fact()
+    f.slug = "ai-trends"
+    f.aliases = ["AI Trends", "ml-trends"]
+    back = markdown_to_fact(fact_to_markdown(f), path="x.md")
+    assert back.slug == "ai-trends"
+    assert back.aliases == ["AI Trends", "ml-trends"]
+
+def test_plain_page_slug_is_stem(tmp_path):
+    (tmp_path / "wiki").mkdir()
+    (tmp_path / "wiki" / "ai-trends.md").write_text("# AI trends\nbody")
+    facts = read_all_facts(tmp_path)
+    page = [f for f in facts if f.source and f.source.endswith("ai-trends.md")][0]
+    assert page.slug == "ai-trends"
