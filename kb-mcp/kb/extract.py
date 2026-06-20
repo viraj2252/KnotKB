@@ -27,11 +27,22 @@ def build_extraction_messages(content: str, existing_names: list[str], types) ->
 def parse_entities_json(text: str, types) -> list[dict]:
     if not text:
         return []
-    m = re.search(r"\[.*\]", text, re.S)
-    if not m:
+    start = text.find("[")
+    if start == -1:
+        return []
+    depth, end = 0, -1
+    for i in range(start, len(text)):
+        if text[i] == "[":
+            depth += 1
+        elif text[i] == "]":
+            depth -= 1
+            if depth == 0:
+                end = i + 1
+                break
+    if end == -1:
         return []
     try:
-        data = json.loads(m.group(0))
+        data = json.loads(text[start:end])
     except Exception:
         return []
     out = []
@@ -82,7 +93,7 @@ def upsert_entity(repo_path, name: str, etype: str, aliases: list[str], existing
     for slug, f in existing.items():
         cand = {_norm(slug)} | {_norm(a) for a in (f.aliases or [])}
         if norms & cand:
-            merged = sorted(set((f.aliases or []) + aliases) - {name})
+            merged = sorted(set((f.aliases or []) + aliases + [name]) - {slug})
             write_entity_page(repo_path, slug, f.entity_type or etype, merged, f"{(f.entity_type or etype).title()}: {name}")
             existing[slug] = markdown_to_fact((repo_path / "entities" / f"{slug}.md").read_text(),
                                               str(repo_path / "entities" / f"{slug}.md"))

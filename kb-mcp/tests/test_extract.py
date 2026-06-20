@@ -26,6 +26,14 @@ def test_upsert_entity_creates_then_dedups(tmp_path):
     s2 = upsert_entity(tmp_path, "Flint", "project", [], existing)
     assert s2 == "flintt"
     assert sorted(p.name for p in (tmp_path / "entities").glob("*.md")) == ["flintt.md"]
+    import yaml
+    page = yaml.safe_load((tmp_path / "entities" / "flintt.md").read_text().split("---")[1])
+    assert "Flint" in page["aliases"]  # matched alias must survive the merge
+
+
+def test_parse_entities_json_ignores_trailing_brackets():
+    out = parse_entities_json('[{"name":"X","type":"person"}] (ref [1])', TYPES)
+    assert out == [{"name": "X", "type": "person", "aliases": []}]
 
 
 def test_cache_and_link_idempotent(tmp_path):
