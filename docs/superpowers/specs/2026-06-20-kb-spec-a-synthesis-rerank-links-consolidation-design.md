@@ -33,6 +33,9 @@ Non-goals (explicitly skipped — platform/team or domain-specific, per the GBra
 | Schedule | **launchd** → `docker compose exec kb-mcp kb consolidate` | Same mechanism as the Drive mirror; one scheduling story |
 | Obsidian | **First-class vault compatibility** (the repo *is* the vault) | Markdown-as-truth means Obsidian is a free human UI; wikilinks light up its graph/backlinks |
 | Linkable slugs | **Human filename = slug** for `wiki/`,`decisions/`,`context/`; atomic facts keep timestamp ids but may opt into `slug`/`aliases` | Resolves §11; gives Obsidian readable titles and native linking |
+| Content location | **Real KB lives in the user's existing Obsidian vault**, in a dedicated `agent-kb/` subfolder — NOT in the `KnotKB` code repo | The code repo is public on GitHub; real personal knowledge must never be committed there |
+| Real-KB durability | **Obsidian ↔ Google Drive sync** (the vault is already synced); no separate git remote / rclone mirror for content | Reuses the user's existing sync; the pgvector index stays local + rebuildable |
+| Consolidation safety net | **Supersede-not-delete** (old file retained, flagged) + Obsidian/Drive version history | The real vault isn't a git repo, so the earlier "git diff" backstop is replaced by non-destructive merges |
 
 ## 3. Architecture
 
@@ -135,7 +138,7 @@ Coexistence caveat: Obsidian edits, `memory_write`, and nightly consolidation al
   - **orphans** — zero inbound wikilinks.
   - **tag drift** — reuse `lint._normalize` near-duplicate tag detection.
 - **Auto-apply (the safe subset only):** near-duplicate pairs with cosine ≥ `KB_AUTOMERGE` (default 0.97) are merged via the existing supersede-to-markdown path (`markdown.set_superseded` + index update) — supersede-not-delete, provenance retained. **Staleness, orphans, tag-drift, and lower-confidence near-dups are report-only.** [Certain — this is the §2 safety decision]
-- **Safety net:** markdown is git-tracked, so every auto-merge is a revertable diff. The report names exactly what was auto-applied.
+- **Safety net:** **supersede-not-delete** — an auto-merge never destroys the old fact; it writes `superseded_by` on the old file (which stays on disk, recoverable by clearing the flag). Obsidian/Drive version history is the secondary backstop. The report names exactly what was auto-applied. (The real vault is Drive-synced, not a git repo, so we don't rely on `git diff`.)
 - **Output:** a dated report file under `.kb/reports/YYYY-MM-DD.md` (gitignored runtime state) + a `log.md` line; CLI prints a summary and exits non-zero if report-only issues remain (so it's scriptable).
 - **Schedule:** a host `launchd` job runs `cd ~/development/hermes-test && docker compose exec -T kb-mcp kb consolidate --apply` nightly. A snapshot plist is committed under `docs/reference/` (like the Drive-mirror plist). [Likely]
 
@@ -155,13 +158,26 @@ Coexistence caveat: Obsidian edits, `memory_write`, and nightly consolidation al
 
 ## 10. Build order (within Spec A)
 
+0. **Decouple content + scrub repo (do FIRST — see §11).** Move real content out of `KnotKB` into the Obsidian vault's `agent-kb/`, gitignore content dirs, add an `example/` sample vault, repoint `~/.claude/CLAUDE.md` `@import`, update the compose bind mount, scrub history + force-push. Must precede real use.
 1. **Reranking** (`rerank.py` + `search` integration) — self-contained, improves everything downstream.
 2. **Wikilinks** (`links.py` + storage + tools + orphan query) — needed by consolidation's orphan check.
 3. **Synthesis** (`synth.py` + `ask` tool) — depends on search/rerank.
 4. **Consolidation** (`consolidate.py` + CLI + schedule) — uses dedup + orphans + supersede.
 5. **Wiring** — compose env, optional Dockerfile model pre-pull, launchd snapshot, docs.
 
-## 11. Open implementation details (resolve during planning)
+## 11. Deployment, vault decoupling & privacy (NEW requirement)
+
+The `KnotKB` repo (`github.com/viraj2252/KnotKB`) is public; real personal knowledge must not live in it. Target:
+
+- **Real KB → the user's existing Obsidian vault**, in a dedicated **`agent-kb/`** subfolder (so machine-written facts stay separate from hand-written notes, both visible in Obsidian). Layout inside it: `memory/`, `wiki/`, `decisions/`, `sources/`, `log.md`, `index.md`.
+- **Indexed paths are configurable.** New env `KB_HOST_PATH` (host) bind-mounts `${KB_HOST_PATH}:/kb`; `KB_REPO_PATH=/kb` unchanged inside the container. The host path = `<obsidian-vault>/agent-kb` (exact vault path supplied at wiring time).
+- **Code repo keeps only an `example/` sample vault** (non-personal demo with the same structure). Content dirs (`context/ memory/ wiki/ decisions/ sources/ log.md index.md`) are **`git rm`'d and added to `.gitignore`** so real knowledge can never be committed.
+- **`~/.claude/CLAUDE.md` `@import`** is repointed from the repo's `context/about-me.md` to the vault's `agent-kb/context/about-me.md` (real identity lives in the private vault).
+- **Durability:** the vault is already **synced to Google Drive via Obsidian** → no separate git remote or rclone mirror for content. The earlier durability artifacts (`scripts/mirror-to-drive.sh`, the mirror plist) targeted the old repo-as-KB model and are now obsolete — remove or repurpose. The **pgvector** index stays a local Docker volume, rebuildable via `kb reindex` (never in the vault, never synced).
+- **History scrub:** rewrite `KnotKB` history to purge the committed content files (the mild `about-me` seed et al.) from all commits, then force-push. (User-confirmed.) This is the one irreversible/outward step — it runs as an explicit, confirmed task.
+- **Drive-sync caveat:** Obsidian/Drive will sync files the container writes (incl. nightly consolidation). For a single user this is fine (markdown, last-write-wins); the pgvector DB is never in the synced tree. [Likely]
+
+## 12. Open implementation details (resolve during planning)
 
 - Exact `fastembed` reranker API surface/model id (confirm `TextCrossEncoder` + `BAAI/bge-reranker-base` availability; pick a fallback like `Xenova/ms-marco-MiniLM-L-6-v2` if needed).
 - Link store: a dedicated `links` table vs. a JSON column on `facts` — pick during planning (lean: dedicated table, rebuilt on reindex).
