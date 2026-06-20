@@ -31,7 +31,7 @@ def consolidate(store, embedder, repo_path, config, apply: bool = False,
                 continue
             a, b = facts[i], facts[j]
             report["near_dups"].append({"a": a.id, "b": b.id, "sim": round(sim, 4)})
-            if apply and sim >= config.dedup_merge:
+            if apply and sim >= config.automerge:
                 # keep the newer fact; supersede the older (non-destructive)
                 older, newer = sorted([a, b], key=lambda f: f.ts or now)
                 if older.superseded_by:
