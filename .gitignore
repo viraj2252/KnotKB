@@ -10,3 +10,4 @@ __pycache__/
 
 # Pending-reindex markers are runtime state, not source of truth
 .kb/pending/
+.superpowers/
