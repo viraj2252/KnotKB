@@ -12,6 +12,7 @@ from kb.util import content_hash, make_id, validate_scope, is_scratch
 
 if TYPE_CHECKING:
     from kb.db import VectorStore
+    from kb.rerank import Reranker
 
 
 def _utcnow() -> datetime:
@@ -20,12 +21,14 @@ def _utcnow() -> datetime:
 
 class KnowledgeBase:
     def __init__(self, store: VectorStore, embedder: Embedder, repo_path,
-                 config: Config, clock: Callable[[], datetime] = _utcnow) -> None:
+                 config: Config, clock: Callable[[], datetime] = _utcnow,
+                 reranker: "Reranker | None" = None) -> None:
         self.store = store
         self.embedder = embedder
         self.repo_path = repo_path
         self.config = config
         self.clock = clock
+        self.reranker = reranker
         self._dedup = DedupConfig(config.dedup_merge, config.dedup_skip)
 
     def write(self, scope: str, content: str, tags=None, source=None) -> dict:
@@ -80,7 +83,12 @@ class KnowledgeBase:
 
         now = self.clock()
         qvec = self.embedder.embed([query])[0]
-        hits = self.store.search(qvec, query, scopes=scopes, tags=tags, k=k, now=now)
+        if self.reranker is not None and self.config.rerank_enabled:
+            cand = self.store.search(qvec, query, scopes=scopes, tags=tags,
+                                     k=self.config.rerank_candidates, now=now)
+            hits = self.reranker.rerank(query, cand)[:k]
+        else:
+            hits = self.store.search(qvec, query, scopes=scopes, tags=tags, k=k, now=now)
         return [
             {
                 "content": f.content,

@@ -49,3 +49,22 @@ def test_result_dict_shape(tmp_path):
     kb.write("global", "alpha beta", tags=["x"], source="conv")
     r = kb.search("alpha beta")[0]
     assert set(r.keys()) == {"content", "score", "scope", "tags", "source", "ts", "path"}
+
+def test_search_uses_reranker_when_present(tmp_path):
+    from tests.fakes import FakeReranker
+    cfg = Config(repo_path=tmp_path, db_url="x")
+    emb = FakeEmbedder()
+    kb = KnowledgeBase(InMemoryVectorStore(emb), emb, tmp_path, cfg,
+                       clock=lambda: FIXED, reranker=FakeReranker())
+    kb.write("global", "alpha beta gamma delta")   # most overlap with query
+    kb.write("global", "alpha unrelated")
+    kb.write("global", "totally other words")
+    results = kb.search("alpha beta gamma", k=3)
+    assert results[0]["content"] == "alpha beta gamma delta"
+
+def test_search_without_reranker_unchanged(tmp_path):
+    cfg = Config(repo_path=tmp_path, db_url="x")
+    emb = FakeEmbedder()
+    kb = KnowledgeBase(InMemoryVectorStore(emb), emb, tmp_path, cfg, clock=lambda: FIXED)
+    kb.write("global", "alpha beta")
+    assert kb.search("alpha beta")  # still returns results (RRF order)
