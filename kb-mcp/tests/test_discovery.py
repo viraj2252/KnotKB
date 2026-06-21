@@ -38,3 +38,8 @@ def test_find_orphans_flags_unmentioned_entity(tmp_path):
     write_entity_page(tmp_path, "ghost", "person", [], "Person: Ghost")  # never mentioned
     out = kb.find_orphans()
     assert any(e["slug"] == "ghost" for e in out["entities"])
+
+
+def test_get_entity_unknown_slug_is_none(tmp_path):
+    kb = build(tmp_path)
+    assert kb.get_entity("does-not-exist")["entity"] is None

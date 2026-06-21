@@ -83,5 +83,6 @@ def _write_report(repo_path, now, report, apply) -> None:
     p.write_text("\n".join(lines))
     append_log(repo_path,
                f"## [{now.date().isoformat()}] consolidate | apply={apply} | "
+               f"extracted={report['extracted']['facts_extracted']} "
                f"merged={len(report['auto_merged'])} dups={len(report['near_dups'])} "
                f"stale={len(report['stale'])} orphans={len(report['orphans'])}")

@@ -16,7 +16,7 @@
 | `KB_EXTRACT_MODEL` | _(inherits `KB_SYNTH_MODEL`)_ | Model override for extraction calls (any OpenAI-wire endpoint) |
 | `KB_EXTRACT_MAX_FACTS` | `50` | Max facts processed per `kb extract` run — hard cost cap |
 | `KB_ENTITY_TYPES` | `person,company,project,topic` | Comma-separated entity types the LLM is prompted to find |
-| `KB_BACKLINK_BOOST` | `0.3` | Additive score boost applied to search results with backlinks; `0` = Spec A ranking |
+| `KB_BACKLINK_BOOST` | `0` | Additive score boost applied to search results with backlinks; default `0` = Spec A ranking (opt-in: set > 0 to enable) |
 
 ## Manual operations
 

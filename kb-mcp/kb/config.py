@@ -28,7 +28,7 @@ class Config:
     extract_model: str = ""
     extract_max_facts: int = 50
     entity_types: tuple[str, ...] = ("person", "company", "project", "topic")
-    backlink_boost: float = 0.3
+    backlink_boost: float = 0.0
 
     @staticmethod
     def from_env(env: Mapping[str, str]) -> "Config":
@@ -62,5 +62,5 @@ class Config:
             entity_types=tuple(t.strip() for t in
                                env.get("KB_ENTITY_TYPES", "person,company,project,topic").split(",")
                                if t.strip()),
-            backlink_boost=float(env.get("KB_BACKLINK_BOOST", "0.3")),
+            backlink_boost=float(env.get("KB_BACKLINK_BOOST", "0")),
         )

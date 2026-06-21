@@ -59,7 +59,7 @@ def test_spec_b_defaults():
     assert cfg.extract_model == ""
     assert cfg.extract_max_facts == 50
     assert cfg.entity_types == ("person", "company", "project", "topic")
-    assert cfg.backlink_boost == 0.3
+    assert cfg.backlink_boost == 0.0
 
 def test_spec_b_overrides():
     cfg = Config.from_env({"KB_REPO_PATH": "/kb", "KB_DB_URL": "x",
