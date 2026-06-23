@@ -126,6 +126,30 @@ def accept_reviews(repo_path, kb, source=None) -> dict:
     return res
 
 
+def ingest_pending_sources(repo_path, kb, llm, config) -> dict:
+    base = Path(repo_path) / "sources"
+    res = {"sources_ingested": 0, "facts_written": 0, "facts_held": 0, "skipped": 0}
+    if not base.exists():
+        return res
+    pending = []
+    for p in sorted(base.glob("*.md")):
+        meta, _ = read_source_meta(str(p))
+        if meta.get("kb_scope") and not meta.get("kb_ingested"):
+            pending.append(p)
+    for p in pending[: config.ingest_max_sources]:
+        try:
+            c = ingest_file(str(p), kb, llm, config)
+        except Exception:
+            res["skipped"] += 1
+            continue
+        res["facts_written"] += c["facts_written"]
+        res["facts_held"] += c["facts_held"]
+        res["skipped"] += c["skipped"]
+        if c["skipped"] == 0:
+            res["sources_ingested"] += 1
+    return res
+
+
 def ingest_file(path, kb, llm, config, scope=None, force=False) -> dict:
     meta, body = read_source_meta(path)
     if meta.get("kb_ingested") and not force:

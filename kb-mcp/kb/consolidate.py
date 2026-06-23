@@ -16,7 +16,13 @@ def consolidate(store, embedder, repo_path, config, apply: bool = False,
     now = now or datetime.now(timezone.utc)
     report = {"near_dups": [], "auto_merged": [], "stale": [],
               "orphans": [], "tag_drift": [],
+              "ingested": {"sources_ingested": 0, "facts_written": 0, "facts_held": 0, "skipped": 0},
               "extracted": {"facts_extracted": 0, "entities_created": 0, "skipped": 0}}
+    if llm is not None and config.ingest_enabled:
+        from kb.ingest import ingest_pending_sources
+        from kb.store import KnowledgeBase
+        kb = KnowledgeBase(store, embedder, repo_path, config)
+        report["ingested"] = ingest_pending_sources(repo_path, kb, llm, config)
     if llm is not None and config.extract_enabled:
         from kb.extract import extract_over_facts
         report["extracted"] = extract_over_facts(repo_path, llm, config)
@@ -74,6 +80,7 @@ def _write_report(repo_path, now, report, apply) -> None:
     d.mkdir(parents=True, exist_ok=True)
     p = d / f"{now.date().isoformat()}.md"
     lines = [f"# Consolidation {now.isoformat()} (apply={apply})", ""]
+    lines.append(f"## ingested\n- {report['ingested']}\n")
     lines.append(f"## extracted\n- {report['extracted']}\n")
     for key in ("auto_merged", "near_dups", "stale", "orphans", "tag_drift"):
         lines.append(f"## {key} ({len(report[key])})")
@@ -83,6 +90,7 @@ def _write_report(repo_path, now, report, apply) -> None:
     p.write_text("\n".join(lines))
     append_log(repo_path,
                f"## [{now.date().isoformat()}] consolidate | apply={apply} | "
+               f"ingested={report['ingested']['sources_ingested']} "
                f"extracted={report['extracted']['facts_extracted']} "
                f"merged={len(report['auto_merged'])} dups={len(report['near_dups'])} "
                f"stale={len(report['stale'])} orphans={len(report['orphans'])}")

@@ -32,6 +32,10 @@ def main(argv=None) -> int:
     rev = sub.add_parser("review", help="list or accept low-confidence ingest drafts")
     rev.add_argument("--accept", action="store_true", help="promote drafts into the KB")
     rev.add_argument("--source", help="only accept drafts from this source filename")
+    ing = sub.add_parser("ingest", help="distill a source file into facts (confidence-gated)")
+    ing.add_argument("file")
+    ing.add_argument("--scope")
+    ing.add_argument("--force", action="store_true")
     args = parser.parse_args(argv)
 
     cfg, store, embedder = _load()
@@ -76,6 +80,13 @@ def main(argv=None) -> int:
             return 0
         for d in list_reviews(cfg.repo_path):
             print(f"[{d['confidence']}] {d['source']}: {d['content'][:70]} ({d['path']})")
+        return 0
+    if args.cmd == "ingest":
+        from kb.ingest import ingest_file
+        from kb.store import KnowledgeBase
+        kb = KnowledgeBase(store, embedder, cfg.repo_path, cfg)
+        c = ingest_file(args.file, kb, _llm(cfg), cfg, scope=args.scope, force=args.force)
+        print(f"facts_written={c['facts_written']} facts_held={c['facts_held']} skipped={c['skipped']}")
         return 0
     return 1
 

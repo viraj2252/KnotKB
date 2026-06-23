@@ -128,3 +128,18 @@ def test_accept_reviews_source_filter_leaves_nonmatching(tmp_path):
     assert res["remaining"] == 1           # b.md left, counted as remaining
     left = list((tmp_path / "review").glob("*.md"))
     assert len(left) == 1 and "from B" in left[0].read_text()  # b.md draft untouched
+
+
+def test_ingest_pending_only_opted_in_and_capped(tmp_path):
+    kb, cfg = _kb(tmp_path)
+    cfg = Config(repo_path=tmp_path, db_url="x", ingest_max_sources=1)
+    src = tmp_path / "sources"; src.mkdir()
+    (src / "a.md").write_text("---\nkb_scope: global\n---\n\nfact a")
+    (src / "b.md").write_text("---\nkb_scope: global\n---\n\nfact b")
+    (src / "ref.md").write_text("just reference material, no kb_scope")  # not opted in
+    from kb.ingest import ingest_pending_sources
+    res = ingest_pending_sources(tmp_path, kb, FakeLLM(reply='[{"content":"X","confidence":99}]'), cfg)
+    assert res["sources_ingested"] == 1                  # cap honored
+    # ref.md without kb_scope is never touched
+    from kb.ingest import read_source_meta
+    assert "kb_ingested" not in read_source_meta(str(src / "ref.md"))[0]

@@ -80,3 +80,15 @@ def test_review_list_and_accept_cli(tmp_path, monkeypatch, capsys):
     assert "held fact" in capsys.readouterr().out
     assert cli.main(["review", "--accept"]) == 0
     assert "accepted=1" in capsys.readouterr().out
+
+
+def test_ingest_subcommand(tmp_path, monkeypatch, capsys):
+    from kb.config import Config
+    from tests.fakes import FakeEmbedder, InMemoryVectorStore, FakeLLM
+    cfg = Config(repo_path=tmp_path, db_url="x")
+    emb = FakeEmbedder(); store = InMemoryVectorStore(emb)
+    f = tmp_path / "note.md"; f.write_text("---\nkb_scope: global\n---\n\nbody")
+    monkeypatch.setattr(cli, "_load", lambda: (cfg, store, emb))
+    monkeypatch.setattr(cli, "_llm", lambda c: FakeLLM(reply='[{"content":"X","confidence":99}]'))
+    assert cli.main(["ingest", str(f)]) == 0
+    assert "facts_written=1" in capsys.readouterr().out

@@ -106,3 +106,18 @@ def test_consolidate_no_llm_skips_extract(tmp_path):
     cfg = Config(repo_path=tmp_path, db_url="x")
     report = consolidate(store, FakeEmbedder(), tmp_path, cfg, apply=True, now=FIXED)
     assert report["extracted"] == {"facts_extracted": 0, "entities_created": 0, "skipped": 0}
+
+
+def test_consolidate_runs_ingest_phase_before_extract(tmp_path):
+    from kb.models import Fact
+    from datetime import datetime, timezone
+    from tests.fakes import FakeLLM
+    store = InMemoryVectorStore(FakeEmbedder())
+    cfg = Config(repo_path=tmp_path, db_url="x", extract_enabled=False)  # isolate ingest
+    emb = FakeEmbedder()
+    src = tmp_path / "sources"; src.mkdir()
+    (src / "n.md").write_text("---\nkb_scope: project:flintt\n---\n\nAnna owns testing")
+    report = consolidate(store, emb, tmp_path, cfg, apply=True, now=FIXED,
+                         llm=FakeLLM(reply='[{"content":"Anna owns testing","confidence":95}]'))
+    assert report["ingested"]["sources_ingested"] == 1
+    assert list((tmp_path / "memory" / "project" / "flintt").glob("*.md"))
