@@ -29,6 +29,10 @@ class Config:
     extract_max_facts: int = 50
     entity_types: tuple[str, ...] = ("person", "company", "project", "topic")
     backlink_boost: float = 0.0
+    ingest_enabled: bool = True
+    ingest_model: str = ""
+    ingest_max_sources: int = 10
+    ingest_confidence: int = 85
 
     @staticmethod
     def from_env(env: Mapping[str, str]) -> "Config":
@@ -63,4 +67,8 @@ class Config:
                                env.get("KB_ENTITY_TYPES", "person,company,project,topic").split(",")
                                if t.strip()),
             backlink_boost=float(env.get("KB_BACKLINK_BOOST", "0")),
+            ingest_enabled=flag("KB_INGEST_ENABLED", True),
+            ingest_model=env.get("KB_INGEST_MODEL", ""),
+            ingest_max_sources=int(env.get("KB_INGEST_MAX_SOURCES", "10")),
+            ingest_confidence=int(env.get("KB_INGEST_CONFIDENCE", "85")),
         )

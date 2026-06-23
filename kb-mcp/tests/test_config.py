@@ -69,3 +69,18 @@ def test_spec_b_overrides():
     assert cfg.extract_max_facts == 5
     assert cfg.entity_types == ("person", "project")
     assert cfg.backlink_boost == 0.0
+
+def test_spec_c_defaults():
+    cfg = Config.from_env({"KB_REPO_PATH": "/kb", "KB_DB_URL": "x"})
+    assert cfg.ingest_enabled is True
+    assert cfg.ingest_model == ""
+    assert cfg.ingest_max_sources == 10
+    assert cfg.ingest_confidence == 85
+
+def test_spec_c_overrides():
+    cfg = Config.from_env({"KB_REPO_PATH": "/kb", "KB_DB_URL": "x",
+                           "KB_INGEST_ENABLED": "false", "KB_INGEST_MAX_SOURCES": "3",
+                           "KB_INGEST_CONFIDENCE": "70"})
+    assert cfg.ingest_enabled is False
+    assert cfg.ingest_max_sources == 3
+    assert cfg.ingest_confidence == 70
