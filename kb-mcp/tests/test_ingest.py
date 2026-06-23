@@ -94,3 +94,24 @@ def test_ingest_file_llm_error_does_not_mark_ingested(tmp_path):
         def complete(self, m, model): raise RuntimeError("proxy down")
     assert ingest_file(str(f), kb, Boom(), cfg) == {"facts_written": 0, "facts_held": 0, "skipped": 1}
     assert "kb_ingested" not in read_source_meta(str(f))[0]   # left for retry
+
+
+def test_list_and_accept_reviews(tmp_path):
+    kb, cfg = _kb(tmp_path)
+    from kb.ingest import write_review_draft, list_reviews, accept_reviews
+    write_review_draft(tmp_path, "global", "draft fact one", ["t"], 40, "n.md", FIXED)
+    write_review_draft(tmp_path, "global", "draft fact two", [], 50, "n.md", FIXED)
+    listed = list_reviews(tmp_path)
+    assert len(listed) == 2 and any("draft fact one" in d["content"] for d in listed)
+    res = accept_reviews(tmp_path, kb)
+    assert res["accepted"] == 2
+    assert not list((tmp_path / "review").glob("*.md"))           # drafts removed
+    assert len(list((tmp_path / "memory" / "global").glob("*.md"))) == 2  # promoted
+
+def test_accept_reviews_skips_invalid_scope(tmp_path):
+    kb, cfg = _kb(tmp_path)
+    from kb.ingest import write_review_draft, accept_reviews
+    write_review_draft(tmp_path, "not a scope", "x", [], 40, "n.md", FIXED)
+    res = accept_reviews(tmp_path, kb)
+    assert res["accepted"] == 0 and res["skipped"] == 1
+    assert list((tmp_path / "review").glob("*.md"))               # draft left in place

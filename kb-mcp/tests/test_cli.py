@@ -64,3 +64,19 @@ def test_extract_subcommand(tmp_path, monkeypatch, capsys):
     rc = cli.main(["extract"])
     assert rc == 0
     assert "facts_extracted=1" in capsys.readouterr().out
+
+def test_review_list_and_accept_cli(tmp_path, monkeypatch, capsys):
+    from kb.config import Config
+    from kb.store import KnowledgeBase
+    from kb.ingest import write_review_draft
+    from tests.fakes import FakeEmbedder, InMemoryVectorStore
+    import datetime as _dt
+    cfg = Config(repo_path=tmp_path, db_url="x")
+    emb = FakeEmbedder(); store = InMemoryVectorStore(emb)
+    write_review_draft(tmp_path, "global", "held fact", ["t"], 40, "n.md",
+                       _dt.datetime(2026, 6, 21, tzinfo=_dt.timezone.utc))
+    monkeypatch.setattr(cli, "_load", lambda: (cfg, store, emb))
+    assert cli.main(["review"]) == 0
+    assert "held fact" in capsys.readouterr().out
+    assert cli.main(["review", "--accept"]) == 0
+    assert "accepted=1" in capsys.readouterr().out

@@ -29,6 +29,9 @@ def main(argv=None) -> int:
     cons = sub.add_parser("consolidate", help="report KB health; auto-merge near-dups with --apply")
     cons.add_argument("--apply", action="store_true", help="apply safe auto-merges")
     sub.add_parser("extract", help="run LLM entity extraction over un-extracted facts")
+    rev = sub.add_parser("review", help="list or accept low-confidence ingest drafts")
+    rev.add_argument("--accept", action="store_true", help="promote drafts into the KB")
+    rev.add_argument("--source", help="only accept drafts from this source filename")
     args = parser.parse_args(argv)
 
     cfg, store, embedder = _load()
@@ -62,6 +65,17 @@ def main(argv=None) -> int:
         counts = extract_over_facts(cfg.repo_path, _llm(cfg), cfg)
         print(f"facts_extracted={counts['facts_extracted']} "
               f"entities_created={counts['entities_created']} skipped={counts['skipped']}")
+        return 0
+    if args.cmd == "review":
+        from kb.ingest import list_reviews, accept_reviews
+        from kb.store import KnowledgeBase
+        if args.accept:
+            kb = KnowledgeBase(store, embedder, cfg.repo_path, cfg)
+            r = accept_reviews(cfg.repo_path, kb, source=args.source)
+            print(f"accepted={r['accepted']} skipped={r['skipped']} remaining={r['remaining']}")
+            return 0
+        for d in list_reviews(cfg.repo_path):
+            print(f"[{d['confidence']}] {d['source']}: {d['content'][:70]} ({d['path']})")
         return 0
     return 1
 

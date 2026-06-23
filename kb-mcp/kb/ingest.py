@@ -95,6 +95,37 @@ def write_review_draft(repo_path, scope, content, tags, confidence, source, ts) 
     return p
 
 
+def list_reviews(repo_path) -> list[dict]:
+    d = Path(repo_path) / "review"
+    out = []
+    if d.exists():
+        for p in sorted(d.glob("*.md")):
+            meta, body = read_source_meta(str(p))
+            out.append({"path": str(p), "scope": meta.get("scope", "global"),
+                        "tags": list(meta.get("tags") or []),
+                        "confidence": meta.get("confidence"),
+                        "source": meta.get("source"), "content": body.strip()})
+    return out
+
+
+def accept_reviews(repo_path, kb, source=None) -> dict:
+    res = {"accepted": 0, "skipped": 0, "remaining": 0}
+    for d in list_reviews(repo_path):
+        if source is not None and d["source"] != source:
+            res["remaining"] += 1
+            continue
+        try:
+            validate_scope(d["scope"])
+        except ValueError:
+            res["skipped"] += 1
+            res["remaining"] += 1
+            continue
+        kb.write(d["scope"], d["content"], tags=d["tags"], source=d["source"])
+        Path(d["path"]).unlink()
+        res["accepted"] += 1
+    return res
+
+
 def ingest_file(path, kb, llm, config, scope=None, force=False) -> dict:
     meta, body = read_source_meta(path)
     if meta.get("kb_ingested") and not force:
