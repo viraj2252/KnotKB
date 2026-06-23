@@ -114,4 +114,17 @@ def test_accept_reviews_skips_invalid_scope(tmp_path):
     write_review_draft(tmp_path, "not a scope", "x", [], 40, "n.md", FIXED)
     res = accept_reviews(tmp_path, kb)
     assert res["accepted"] == 0 and res["skipped"] == 1
+    assert res["remaining"] == 1   # invalid-scope draft also counts as remaining
     assert list((tmp_path / "review").glob("*.md"))               # draft left in place
+
+def test_accept_reviews_source_filter_leaves_nonmatching(tmp_path):
+    kb, cfg = _kb(tmp_path)
+    from kb.ingest import write_review_draft, accept_reviews
+    write_review_draft(tmp_path, "global", "from A", [], 40, "a.md", FIXED)
+    write_review_draft(tmp_path, "global", "from B", [], 40, "b.md", FIXED)
+    res = accept_reviews(tmp_path, kb, source="a.md")
+    assert res["accepted"] == 1            # only a.md promoted
+    assert res["skipped"] == 0             # non-match is NOT a skip
+    assert res["remaining"] == 1           # b.md left, counted as remaining
+    left = list((tmp_path / "review").glob("*.md"))
+    assert len(left) == 1 and "from B" in left[0].read_text()  # b.md draft untouched
