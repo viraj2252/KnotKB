@@ -55,7 +55,7 @@ def main(argv=None) -> int:
         return 1 if issues else 0
     if args.cmd == "consolidate":
         from kb.consolidate import consolidate
-        llm = _llm(cfg) if cfg.extract_enabled else None
+        llm = _llm(cfg) if (cfg.extract_enabled or cfg.ingest_enabled) else None
         report = consolidate(store, embedder, cfg.repo_path, cfg, apply=args.apply, llm=llm)
         print(f"extracted={report['extracted']['facts_extracted']} "
               f"auto_merged={len(report['auto_merged'])} near_dups={len(report['near_dups'])} "

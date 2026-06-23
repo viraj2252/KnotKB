@@ -92,3 +92,17 @@ def test_ingest_subcommand(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cli, "_llm", lambda c: FakeLLM(reply='[{"content":"X","confidence":99}]'))
     assert cli.main(["ingest", str(f)]) == 0
     assert "facts_written=1" in capsys.readouterr().out
+
+def test_consolidate_builds_llm_when_only_ingest_enabled(tmp_path, monkeypatch):
+    from kb.config import Config
+    from tests.fakes import FakeEmbedder, InMemoryVectorStore, FakeLLM
+    cfg = Config(repo_path=tmp_path, db_url="x", extract_enabled=False, ingest_enabled=True)
+    emb = FakeEmbedder(); store = InMemoryVectorStore(emb)
+    called = {"n": 0}
+    def fake_llm(c):
+        called["n"] += 1
+        return FakeLLM(reply="[]")
+    monkeypatch.setattr(cli, "_load", lambda: (cfg, store, emb))
+    monkeypatch.setattr(cli, "_llm", fake_llm)
+    cli.main(["consolidate"])
+    assert called["n"] == 1
