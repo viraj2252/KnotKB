@@ -1,5 +1,16 @@
+from datetime import datetime, timezone
 from pathlib import Path
-from kb.ingest import parse_facts_json, read_source_meta, mark_ingested, build_ingest_messages
+from kb.config import Config
+from kb.store import KnowledgeBase
+from kb.ingest import parse_facts_json, read_source_meta, mark_ingested, build_ingest_messages, ingest_file, write_review_draft
+from tests.fakes import FakeEmbedder, InMemoryVectorStore, FakeLLM
+
+FIXED = datetime(2026, 6, 21, tzinfo=timezone.utc)
+
+def _kb(tmp_path):
+    cfg = Config(repo_path=tmp_path, db_url="x")
+    emb = FakeEmbedder()
+    return KnowledgeBase(InMemoryVectorStore(emb), emb, tmp_path, cfg, clock=lambda: FIXED), cfg
 
 def test_build_ingest_messages_has_system_and_content():
     msgs = build_ingest_messages("Anna owns testing.")
@@ -35,3 +46,51 @@ def test_mark_ingested_adds_frontmatter_when_absent(tmp_path):
     meta, body = read_source_meta(str(p))
     assert meta["kb_ingested"] is True
     assert "just a plain note" in body
+
+
+def test_ingest_file_splits_by_confidence(tmp_path):
+    kb, cfg = _kb(tmp_path)
+    src = tmp_path / "sources"; src.mkdir()
+    f = src / "note.md"
+    f.write_text("---\nkb_scope: project:flintt\n---\n\nAnna owns testing.")
+    llm = FakeLLM(reply='[{"content":"Anna owns testing","tags":["qa"],"confidence":92},'
+                        '{"content":"Maybe Anna prefers dark mode","tags":[],"confidence":40}]')
+    counts = ingest_file(str(f), kb, llm, cfg)
+    assert counts == {"facts_written": 1, "facts_held": 1, "skipped": 0}
+    # high-confidence fact written under the directive scope
+    written = list((tmp_path / "memory" / "project" / "flintt").glob("*.md"))
+    assert written and "Anna owns testing" in written[0].read_text()
+    # low-confidence fact held in review/, NOT in memory/
+    drafts = list((tmp_path / "review").glob("*.md"))
+    assert drafts and "dark mode" in drafts[0].read_text()
+    # source marked ingested
+    assert read_source_meta(str(f))[0]["kb_ingested"] is True
+
+
+def test_ingest_file_skips_when_already_ingested(tmp_path):
+    kb, cfg = _kb(tmp_path)
+    f = tmp_path / "s.md"
+    f.write_text("---\nkb_scope: global\nkb_ingested: true\n---\n\nbody")
+    llm = FakeLLM(reply='[{"content":"X","confidence":99}]')
+    assert ingest_file(str(f), kb, llm, cfg) == {"facts_written": 0, "facts_held": 0, "skipped": 1}
+    assert llm.calls == []                          # no LLM call when skipping
+    assert ingest_file(str(f), kb, llm, cfg, force=True)["facts_written"] == 1  # --force overrides
+
+
+def test_ingest_file_scope_precedence(tmp_path):
+    kb, cfg = _kb(tmp_path)
+    f = tmp_path / "s.md"
+    f.write_text("---\nkb_scope: project:flintt\n---\n\nbody")
+    llm = FakeLLM(reply='[{"content":"X","confidence":99}]')
+    ingest_file(str(f), kb, llm, cfg, scope="global")   # explicit --scope wins
+    assert list((tmp_path / "memory" / "global").glob("*.md"))
+
+
+def test_ingest_file_llm_error_does_not_mark_ingested(tmp_path):
+    kb, cfg = _kb(tmp_path)
+    f = tmp_path / "s.md"
+    f.write_text("---\nkb_scope: global\n---\n\nbody")
+    class Boom:
+        def complete(self, m, model): raise RuntimeError("proxy down")
+    assert ingest_file(str(f), kb, Boom(), cfg) == {"facts_written": 0, "facts_held": 0, "skipped": 1}
+    assert "kb_ingested" not in read_source_meta(str(f))[0]   # left for retry

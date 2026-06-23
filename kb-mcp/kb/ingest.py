@@ -78,3 +78,43 @@ def mark_ingested(path) -> None:
         p.write_text(f"---\n{dumped}\n---{body}")
     else:
         p.write_text(f"---\nkb_ingested: true\n---\n\n{text}")
+
+
+def write_review_draft(repo_path, scope, content, tags, confidence, source, ts) -> Path:
+    d = Path(repo_path) / "review"
+    d.mkdir(parents=True, exist_ok=True)
+    base = make_id(ts, content_hash(content))
+    slug, n = base, 2
+    while (d / f"{slug}.md").exists():
+        slug = f"{base}-{n}"
+        n += 1
+    meta = {"scope": scope, "tags": list(tags), "confidence": confidence, "source": source}
+    front = yaml.safe_dump(meta, sort_keys=True, default_flow_style=False).strip()
+    p = d / f"{slug}.md"
+    p.write_text(f"---\n{front}\n---\n\n{content}\n")
+    return p
+
+
+def ingest_file(path, kb, llm, config, scope=None, force=False) -> dict:
+    meta, body = read_source_meta(path)
+    if meta.get("kb_ingested") and not force:
+        return {"facts_written": 0, "facts_held": 0, "skipped": 1}
+    resolved = scope or meta.get("kb_scope") or "global"
+    validate_scope(resolved)
+    try:
+        raw = llm.complete(build_ingest_messages(body), config.ingest_model or config.synth_model)
+    except Exception:
+        return {"facts_written": 0, "facts_held": 0, "skipped": 1}
+    written = held = 0
+    ts = kb.clock()
+    src = Path(path).name
+    for fact in parse_facts_json(raw):
+        if fact["confidence"] >= config.ingest_confidence:
+            kb.write(resolved, fact["content"], tags=fact["tags"], source=src)
+            written += 1
+        else:
+            write_review_draft(kb.repo_path, resolved, fact["content"], fact["tags"],
+                               fact["confidence"], src, ts)
+            held += 1
+    mark_ingested(path)
+    return {"facts_written": written, "facts_held": held, "skipped": 0}
