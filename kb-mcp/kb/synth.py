@@ -14,6 +14,11 @@ class LLMClient(Protocol):
     def complete(self, messages: list[dict], model: str) -> str: ...
 
 
+def synth_configured(config) -> bool:
+    """LLM features are enabled iff a synth base URL is set (empty = off)."""
+    return bool(config.synth_base_url)
+
+
 def build_messages(question: str, facts: list[Fact]) -> list[dict]:
     lines = []
     for i, f in enumerate(facts, 1):

@@ -60,3 +60,12 @@ def test_openai_wire_client_builds_url():
     from kb.synth import OpenAIWireClient
     c = OpenAIWireClient("http://claude-proxy:8000/v1", "")
     assert c.url == "http://claude-proxy:8000/v1/chat/completions"
+
+def test_synth_configured_true_with_base_url(tmp_path):
+    from kb.synth import synth_configured
+    assert synth_configured(Config(repo_path=tmp_path, db_url="x")) is True
+
+def test_synth_configured_false_with_empty_base_url(tmp_path):
+    from kb.synth import synth_configured
+    cfg = Config(repo_path=tmp_path, db_url="x", synth_base_url="")
+    assert synth_configured(cfg) is False

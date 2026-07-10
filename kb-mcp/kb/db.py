@@ -2,7 +2,10 @@ from datetime import datetime
 from typing import Protocol
 
 import psycopg
-from pgvector.psycopg import register_vector, Vector
+# Vector moved to the top-level package in pgvector 0.4 and the psycopg
+# re-export was dropped in 0.5.
+from pgvector import Vector
+from pgvector.psycopg import register_vector
 
 from kb.models import Fact
 

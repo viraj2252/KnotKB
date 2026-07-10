@@ -16,8 +16,13 @@ def _load():
     return cfg, store, FastEmbedder(model=cfg.embed_model, dim=cfg.embed_dim)
 
 
+_LLM_DISABLED_HINT = "LLM disabled: set KB_SYNTH_BASE_URL to enable (see docs/SETUP.md)"
+
+
 def _llm(cfg):
-    from kb.synth import OpenAIWireClient
+    from kb.synth import OpenAIWireClient, synth_configured
+    if not synth_configured(cfg):
+        return None
     return OpenAIWireClient(cfg.synth_base_url, cfg.synth_key)
 
 
@@ -66,7 +71,11 @@ def main(argv=None) -> int:
         return 1 if report_only else 0
     if args.cmd == "extract":
         from kb.extract import extract_over_facts
-        counts = extract_over_facts(cfg.repo_path, _llm(cfg), cfg)
+        llm = _llm(cfg)
+        if llm is None:
+            print(_LLM_DISABLED_HINT)
+            return 1
+        counts = extract_over_facts(cfg.repo_path, llm, cfg)
         print(f"facts_extracted={counts['facts_extracted']} "
               f"entities_created={counts['entities_created']} skipped={counts['skipped']}")
         return 0
@@ -84,8 +93,12 @@ def main(argv=None) -> int:
     if args.cmd == "ingest":
         from kb.ingest import ingest_file
         from kb.store import KnowledgeBase
+        llm = _llm(cfg)
+        if llm is None:
+            print(_LLM_DISABLED_HINT)
+            return 1
         kb = KnowledgeBase(store, embedder, cfg.repo_path, cfg)
-        c = ingest_file(args.file, kb, _llm(cfg), cfg, scope=args.scope, force=args.force)
+        c = ingest_file(args.file, kb, llm, cfg, scope=args.scope, force=args.force)
         print(f"facts_written={c['facts_written']} facts_held={c['facts_held']} skipped={c['skipped']}")
         return 0
     return 1

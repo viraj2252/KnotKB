@@ -91,7 +91,10 @@ def create_app(config: Config):
     @mcp.tool()
     def ask(question: str, scope=None, k: int | None = None) -> dict:
         """Answer a question from the KB with cited sources. Returns {answer, citations, used_facts}."""
-        from kb.synth import synthesize, OpenAIWireClient
+        from kb.synth import synthesize, synth_configured, OpenAIWireClient
+        if not synth_configured(config):
+            return {"error": "LLM synthesis not configured: set KB_SYNTH_BASE_URL "
+                             "(see docs/SETUP.md, LLM backend section)"}
         llm = OpenAIWireClient(config.synth_base_url, config.synth_key)
         return synthesize(kb, question, llm, scope=scope, k=k)
 
@@ -105,4 +108,12 @@ def create_app(config: Config):
     return app
 
 
-app = create_app(Config.from_env(os.environ)) if os.environ.get("KB_DB_URL") else None
+def app_factory():
+    """Uvicorn factory: `uvicorn --factory kb.server:app_factory`."""
+    missing = [k for k in ("KB_REPO_PATH", "KB_DB_URL") if not os.environ.get(k)]
+    if missing:
+        raise RuntimeError(
+            "kb-mcp cannot start: missing required env var(s) " + ", ".join(missing)
+            + ". Copy .env.example to .env and fill them in (see docs/SETUP.md)."
+        )
+    return create_app(Config.from_env(os.environ))

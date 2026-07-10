@@ -93,6 +93,38 @@ def test_ingest_subcommand(tmp_path, monkeypatch, capsys):
     assert cli.main(["ingest", str(f)]) == 0
     assert "facts_written=1" in capsys.readouterr().out
 
+def test_llm_returns_none_when_base_url_empty(tmp_path):
+    cfg = Config(repo_path=tmp_path, db_url="x", synth_base_url="")
+    assert cli._llm(cfg) is None
+
+def test_extract_exits_1_when_llm_disabled(tmp_path, monkeypatch, capsys):
+    cfg = Config(repo_path=tmp_path, db_url="x", synth_base_url="")
+    emb = FakeEmbedder(); store = InMemoryVectorStore(emb)
+    monkeypatch.setattr(cli, "_load", lambda: (cfg, store, emb))
+    rc = cli.main(["extract"])
+    assert rc == 1
+    assert "KB_SYNTH_BASE_URL" in capsys.readouterr().out
+
+def test_ingest_exits_1_when_llm_disabled(tmp_path, monkeypatch, capsys):
+    cfg = Config(repo_path=tmp_path, db_url="x", synth_base_url="")
+    emb = FakeEmbedder(); store = InMemoryVectorStore(emb)
+    f = tmp_path / "note.md"; f.write_text("---\nkb_scope: global\n---\n\nbody")
+    monkeypatch.setattr(cli, "_load", lambda: (cfg, store, emb))
+    rc = cli.main(["ingest", str(f)])
+    assert rc == 1
+    assert "KB_SYNTH_BASE_URL" in capsys.readouterr().out
+
+def test_consolidate_runs_without_llm_when_base_url_empty(tmp_path, monkeypatch, capsys):
+    import datetime as _dt
+    cfg = Config(repo_path=tmp_path, db_url="x", synth_base_url="")
+    emb = FakeEmbedder(); store = InMemoryVectorStore(emb)
+    kb = KnowledgeBase(store, emb, tmp_path, cfg,
+                       clock=lambda: _dt.datetime(2026, 6, 20, tzinfo=_dt.timezone.utc))
+    kb.write("global", "a fact that would otherwise be sent for extraction")
+    monkeypatch.setattr(cli, "_load", lambda: (cfg, store, emb))
+    cli.main(["consolidate"])
+    assert "extracted=0" in capsys.readouterr().out
+
 def test_consolidate_builds_llm_when_only_ingest_enabled(tmp_path, monkeypatch):
     from kb.config import Config
     from tests.fakes import FakeEmbedder, InMemoryVectorStore, FakeLLM
