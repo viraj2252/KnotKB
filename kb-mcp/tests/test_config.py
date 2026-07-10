@@ -84,3 +84,15 @@ def test_spec_c_overrides():
     assert cfg.ingest_enabled is False
     assert cfg.ingest_max_sources == 3
     assert cfg.ingest_confidence == 70
+
+def test_provider_defaults_to_openai(tmp_path):
+    cfg = Config.from_env({"KB_REPO_PATH": str(tmp_path), "KB_DB_URL": "x"})
+    assert cfg.synth_provider == "openai"
+    assert cfg.cursor_api_key == ""
+
+def test_provider_cursor_parsed(tmp_path):
+    cfg = Config.from_env({"KB_REPO_PATH": str(tmp_path), "KB_DB_URL": "x",
+                           "KB_SYNTH_PROVIDER": " Cursor ",
+                           "CURSOR_API_KEY": "crsr_test"})
+    assert cfg.synth_provider == "cursor"
+    assert cfg.cursor_api_key == "crsr_test"

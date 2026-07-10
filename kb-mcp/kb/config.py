@@ -22,6 +22,8 @@ class Config:
     synth_model: str = "claude-sonnet-4-6"
     synth_key: str = ""
     synth_max_facts: int = 8
+    synth_provider: str = "openai"
+    cursor_api_key: str = ""
     stale_days: int = 180
     automerge: float = 0.97
     extract_enabled: bool = True
@@ -58,6 +60,8 @@ class Config:
             synth_model=env.get("KB_SYNTH_MODEL", "claude-sonnet-4-6"),
             synth_key=env.get("KB_SYNTH_KEY", ""),
             synth_max_facts=int(env.get("KB_SYNTH_MAX_FACTS", "8")),
+            synth_provider=env.get("KB_SYNTH_PROVIDER", "openai").strip().lower(),
+            cursor_api_key=env.get("CURSOR_API_KEY", ""),
             stale_days=int(env.get("KB_STALE_DAYS", "180")),
             automerge=float(env.get("KB_AUTOMERGE", "0.97")),
             extract_enabled=flag("KB_EXTRACT_ENABLED", True),
