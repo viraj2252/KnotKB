@@ -20,7 +20,8 @@ class CursorAgentClient:
     """LLMClient adapter: one-shot Cursor agent runs via cursor-sdk.
 
     Each complete() is a stateless Agent.prompt() with a local runtime whose
-    cwd is an empty throwaway directory, so the agent never sees real files.
+    cwd is an empty scratch directory (not the vault or a repo); the prompt
+    additionally instructs the agent to answer text-only without tools.
     """
 
     def __init__(self, api_key: str, workspace: str | None = None) -> None:
