@@ -8,7 +8,7 @@ Status: approved
 The LLM-backed features (`ask`, entity extract, auto-ingest) currently require
 an OpenAI-compatible chat endpoint (`KB_SYNTH_BASE_URL`). At work, the user's
 available LLM access is a Cursor subscription (user API key). The Cursor
-Python SDK (`cursor-sdk`, https://cursor.com/docs/sdk/python) is **agentic
+Python SDK (`cursor-sdk`, <https://cursor.com/docs/sdk/python>) is **agentic
 only** — it exposes one-shot/stateful agent runs, not a chat-completions
 wire — so it cannot be pointed at via `KB_SYNTH_BASE_URL`.
 
@@ -86,7 +86,7 @@ to operate for one consumer); docs-only via a workplace LiteLLM gateway
 
 Office-instance recipe (three lines + rebuild):
 
-```
+```dotenv
 KB_SYNTH_PROVIDER=cursor
 CURSOR_API_KEY=crsr_...
 KB_SYNTH_MODEL=composer-2.5
