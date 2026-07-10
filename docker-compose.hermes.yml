@@ -1,0 +1,18 @@
+# Overlay: also attach kb-mcp to the shared hermes-net so Hermes and
+# claude-proxy can reach it as kb-mcp:8077.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.hermes.yml up -d
+#   (or: make up-hermes)
+#
+# Compose v2 concatenates service `networks` across -f files, so kb-mcp ends up
+# on both kb-net and hermes-net; kb-postgres stays private on kb-net.
+# NOTE: stop any kb-mcp/kb-postgres services in the hermes-test stack first,
+# otherwise you get a duplicate kb-mcp alias on hermes-net and a port clash.
+services:
+  kb-mcp:
+    networks:
+      - hermes-net
+
+networks:
+  hermes-net:
+    external: true

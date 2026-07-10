@@ -8,7 +8,7 @@ services:
     volumes:
       - kb-pgdata:/var/lib/postgresql/data
     networks:
-      - hermes-net
+      - kb-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kb}"]
       interval: 5s
@@ -20,23 +20,29 @@ services:
     env_file: .env
     environment:
       KB_REPO_PATH: /kb
+      # Empty when not set in .env/shell -> LLM features (ask/extract/ingest)
+      # are cleanly disabled instead of dialing a nonexistent claude-proxy.
+      KB_SYNTH_BASE_URL: ${KB_SYNTH_BASE_URL:-}
     volumes:
-      - ./memory:/kb/memory
-      - ./wiki:/kb/wiki
-      - ./decisions:/kb/decisions
-      - ./sources:/kb/sources
-      - ./log.md:/kb/log.md
+      # Point KB_HOST_PATH at your Obsidian vault's agent-kb/ folder, or any
+      # plain folder. Defaults to a gitignored local dir for standalone use.
+      - ${KB_HOST_PATH:-./kb-data}:/kb
     ports:
       - "127.0.0.1:${KB_MCP_PORT:-8077}:8077"
     depends_on:
       kb-postgres:
         condition: service_healthy
     networks:
-      - hermes-net
+      - kb-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8077/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 600s   # first boot downloads ~90 MB of models (slow on a cold HF cache)
 
 volumes:
   kb-pgdata:              # local-only, never synced (rebuild via `make reindex`)
 
 networks:
-  hermes-net:
-    external: true
+  kb-net: {}              # project-local; use docker-compose.hermes.yml to also join hermes-net

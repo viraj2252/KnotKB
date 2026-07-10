@@ -12,6 +12,9 @@ __pycache__/
 .kb/pending/
 .superpowers/
 
+# Default standalone vault dir (KB_HOST_PATH unset) — content, not source
+/kb-data/
+
 # Real KB content never lives in this public repo — it lives in the Obsidian vault.
 /context/
 /memory/

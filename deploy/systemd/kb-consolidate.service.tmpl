@@ -1,0 +1,7 @@
+[Unit]
+Description=KnotKB nightly consolidation (kb consolidate --apply)
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=@KB_RUNNER@
