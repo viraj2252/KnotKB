@@ -154,3 +154,26 @@ def test_extract_hint_mentions_cursor_option(tmp_path, monkeypatch, capsys):
     assert cli.main(["extract"]) == 1
     out = capsys.readouterr().out
     assert "KB_SYNTH_BASE_URL" in out and "KB_SYNTH_PROVIDER=cursor" in out
+
+
+def test_extract_reports_missing_cursor_sdk(tmp_path, monkeypatch, capsys):
+    import sys
+    monkeypatch.setitem(sys.modules, "cursor_sdk", None)
+    cfg = Config(repo_path=tmp_path, db_url="x", synth_provider="cursor",
+                 cursor_api_key="crsr_k")
+    emb = FakeEmbedder(); store = InMemoryVectorStore(emb)
+    monkeypatch.setattr(cli, "_load", lambda: (cfg, store, emb))
+    rc = cli.main(["extract"])
+    assert rc == 1
+    assert "KB_EXTRAS=cursor" in capsys.readouterr().out
+
+def test_consolidate_survives_missing_cursor_sdk(tmp_path, monkeypatch, capsys):
+    import sys
+    monkeypatch.setitem(sys.modules, "cursor_sdk", None)
+    cfg = Config(repo_path=tmp_path, db_url="x", synth_provider="cursor",
+                 cursor_api_key="crsr_k")
+    emb = FakeEmbedder(); store = InMemoryVectorStore(emb)
+    monkeypatch.setattr(cli, "_load", lambda: (cfg, store, emb))
+    cli.main(["consolidate"])
+    out = capsys.readouterr().out
+    assert "warning:" in out and "extracted=0" in out

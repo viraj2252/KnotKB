@@ -77,6 +77,14 @@ def test_default_workspace_is_fresh_temp_dir(monkeypatch):
     assert "kb-cursor-" in c.workspace
 
 
+def test_default_workspace_is_shared_across_clients(monkeypatch):
+    install_fake_cursor_sdk(monkeypatch)
+    from kb.cursor_llm import CursorAgentClient
+    a = CursorAgentClient("crsr_k")
+    b = CursorAgentClient("crsr_k")
+    assert a.workspace == b.workspace
+
+
 def test_missing_sdk_raises_actionable_error(monkeypatch):
     monkeypatch.setitem(sys.modules, "cursor_sdk", None)  # import -> ImportError
     from kb.cursor_llm import CursorAgentClient

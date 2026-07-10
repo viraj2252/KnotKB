@@ -210,8 +210,9 @@ attempt an LLM call.
 
 If your work LLM access is a Cursor subscription, the KB can run its LLM
 features through the Cursor SDK instead of an OpenAI-wire endpoint. Each call
-is a one-shot agent run in an empty scratch workspace — the agent never sees
-your vault or any repository.
+is a one-shot agent run whose working directory is an empty scratch folder
+(not your vault or a repository), and the prompt instructs the agent to
+answer text-only without using tools.
 
 In `.env`:
 

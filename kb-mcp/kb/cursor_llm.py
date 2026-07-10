@@ -1,9 +1,19 @@
+import os
 import tempfile
 
 _INSTRUCTION = (
     "Answer directly as plain text. Do not use any tools, do not read or "
     "modify files, do not run commands. Respond with the answer only."
 )
+
+_workspace: str | None = None
+
+
+def _shared_workspace() -> str:
+    global _workspace
+    if _workspace is None or not os.path.isdir(_workspace):
+        _workspace = tempfile.mkdtemp(prefix="kb-cursor-")
+    return _workspace
 
 
 class CursorAgentClient:
@@ -26,7 +36,7 @@ class CursorAgentClient:
         self._agent_options = AgentOptions
         self._local_options = LocalAgentOptions
         self.api_key = api_key
-        self.workspace = workspace or tempfile.mkdtemp(prefix="kb-cursor-")
+        self.workspace = workspace or _shared_workspace()
 
     def complete(self, messages: list[dict], model: str) -> str:
         prompt = "\n\n".join([_INSTRUCTION] + [m["content"] for m in messages])

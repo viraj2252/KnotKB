@@ -48,7 +48,8 @@ you configure a backend — any OpenAI-compatible endpoint via
 end-to-end: prerequisites per platform, every configuration knob, the nightly
 consolidation job (`make schedule-install` — launchd / systemd / cron),
 wiring an LLM backend (OpenAI-compatible: claude-proxy, OpenAI, Ollama,
-LiteLLM), Hermes integration, verification, and troubleshooting.
+LiteLLM — or a Cursor subscription), Hermes integration, verification, and
+troubleshooting.
 
 ## Repo map
 

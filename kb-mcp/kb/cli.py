@@ -59,7 +59,11 @@ def main(argv=None) -> int:
         return 1 if issues else 0
     if args.cmd == "consolidate":
         from kb.consolidate import consolidate
-        llm = _llm(cfg) if (cfg.extract_enabled or cfg.ingest_enabled) else None
+        try:
+            llm = _llm(cfg) if (cfg.extract_enabled or cfg.ingest_enabled) else None
+        except RuntimeError as e:
+            print(f"warning: {e} — continuing without LLM phases")
+            llm = None
         report = consolidate(store, embedder, cfg.repo_path, cfg, apply=args.apply, llm=llm)
         print(f"extracted={report['extracted']['facts_extracted']} "
               f"auto_merged={len(report['auto_merged'])} near_dups={len(report['near_dups'])} "
@@ -70,7 +74,11 @@ def main(argv=None) -> int:
         return 1 if report_only else 0
     if args.cmd == "extract":
         from kb.extract import extract_over_facts
-        llm = _llm(cfg)
+        try:
+            llm = _llm(cfg)
+        except RuntimeError as e:
+            print(e)
+            return 1
         if llm is None:
             print(_LLM_DISABLED_HINT)
             return 1
@@ -92,7 +100,11 @@ def main(argv=None) -> int:
     if args.cmd == "ingest":
         from kb.ingest import ingest_file
         from kb.store import KnowledgeBase
-        llm = _llm(cfg)
+        try:
+            llm = _llm(cfg)
+        except RuntimeError as e:
+            print(e)
+            return 1
         if llm is None:
             print(_LLM_DISABLED_HINT)
             return 1

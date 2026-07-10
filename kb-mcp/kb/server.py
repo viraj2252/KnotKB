@@ -96,7 +96,11 @@ def create_app(config: Config):
             return {"error": "LLM synthesis not configured: set KB_SYNTH_BASE_URL, "
                              "or KB_SYNTH_PROVIDER=cursor with CURSOR_API_KEY "
                              "(see docs/SETUP.md, LLM backend section)"}
-        return synthesize(kb, question, build_llm(config), scope=scope, k=k)
+        try:
+            llm = build_llm(config)
+        except RuntimeError as e:
+            return {"error": str(e)}
+        return synthesize(kb, question, llm, scope=scope, k=k)
 
     app = mcp.streamable_http_app()
 
