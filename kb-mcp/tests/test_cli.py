@@ -138,3 +138,19 @@ def test_consolidate_builds_llm_when_only_ingest_enabled(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "_llm", fake_llm)
     cli.main(["consolidate"])
     assert called["n"] == 1
+
+def test_llm_builds_cursor_client_when_provider_cursor(tmp_path, monkeypatch):
+    from tests.test_cursor_llm import install_fake_cursor_sdk
+    install_fake_cursor_sdk(monkeypatch)
+    from kb.cursor_llm import CursorAgentClient
+    cfg = Config(repo_path=tmp_path, db_url="x", synth_provider="cursor",
+                 cursor_api_key="crsr_k")
+    assert isinstance(cli._llm(cfg), CursorAgentClient)
+
+def test_extract_hint_mentions_cursor_option(tmp_path, monkeypatch, capsys):
+    cfg = Config(repo_path=tmp_path, db_url="x", synth_base_url="")
+    emb = FakeEmbedder(); store = InMemoryVectorStore(emb)
+    monkeypatch.setattr(cli, "_load", lambda: (cfg, store, emb))
+    assert cli.main(["extract"]) == 1
+    out = capsys.readouterr().out
+    assert "KB_SYNTH_BASE_URL" in out and "KB_SYNTH_PROVIDER=cursor" in out

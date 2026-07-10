@@ -91,12 +91,12 @@ def create_app(config: Config):
     @mcp.tool()
     def ask(question: str, scope=None, k: int | None = None) -> dict:
         """Answer a question from the KB with cited sources. Returns {answer, citations, used_facts}."""
-        from kb.synth import synthesize, synth_configured, OpenAIWireClient
+        from kb.synth import synthesize, synth_configured, build_llm
         if not synth_configured(config):
-            return {"error": "LLM synthesis not configured: set KB_SYNTH_BASE_URL "
+            return {"error": "LLM synthesis not configured: set KB_SYNTH_BASE_URL, "
+                             "or KB_SYNTH_PROVIDER=cursor with CURSOR_API_KEY "
                              "(see docs/SETUP.md, LLM backend section)"}
-        llm = OpenAIWireClient(config.synth_base_url, config.synth_key)
-        return synthesize(kb, question, llm, scope=scope, k=k)
+        return synthesize(kb, question, build_llm(config), scope=scope, k=k)
 
     app = mcp.streamable_http_app()
 

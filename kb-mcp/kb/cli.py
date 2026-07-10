@@ -16,14 +16,13 @@ def _load():
     return cfg, store, FastEmbedder(model=cfg.embed_model, dim=cfg.embed_dim)
 
 
-_LLM_DISABLED_HINT = "LLM disabled: set KB_SYNTH_BASE_URL to enable (see docs/SETUP.md)"
+_LLM_DISABLED_HINT = ("LLM disabled: set KB_SYNTH_BASE_URL, or KB_SYNTH_PROVIDER=cursor "
+                      "with CURSOR_API_KEY (see docs/SETUP.md)")
 
 
 def _llm(cfg):
-    from kb.synth import OpenAIWireClient, synth_configured
-    if not synth_configured(cfg):
-        return None
-    return OpenAIWireClient(cfg.synth_base_url, cfg.synth_key)
+    from kb.synth import build_llm
+    return build_llm(cfg)
 
 
 def main(argv=None) -> int:
