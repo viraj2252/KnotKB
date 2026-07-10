@@ -16,7 +16,10 @@ services:
       retries: 10
 
   kb-mcp:
-    build: ./kb-mcp
+    build:
+      context: ./kb-mcp
+      args:
+        KB_EXTRAS: ${KB_EXTRAS:-}
     env_file: .env
     environment:
       KB_REPO_PATH: /kb

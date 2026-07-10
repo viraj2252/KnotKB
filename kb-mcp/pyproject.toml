@@ -15,6 +15,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+cursor = ["cursor-sdk>=0.1.9"]
 
 [project.scripts]
 kb = "kb.cli:main"
