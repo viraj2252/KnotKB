@@ -176,7 +176,7 @@ Search, write, links, and the knowledge graph queries all work with **no LLM
 at all**. Three features need one:
 
 | Feature | What it does | Without an LLM |
-|---|---|---|
+| --- | --- | --- |
 | `ask` (MCP tool) | Answers questions with citations | Returns a clean "not configured" error |
 | `kb extract` / nightly extract | Builds typed entity pages from facts | Skipped |
 | `kb ingest` / nightly ingest | Distills `sources/` into facts (confidence-gated) | `kb ingest` exits with a hint; nightly phase skipped |
@@ -185,7 +185,7 @@ Enable them by pointing `KB_SYNTH_BASE_URL` at **any OpenAI-compatible chat
 endpoint** and restarting (`make up`):
 
 | Backend | `KB_SYNTH_BASE_URL` | Notes |
-|---|---|---|
+| --- | --- | --- |
 | claude-proxy (Hermes stack) | `http://claude-proxy:8000/v1` | Requires the [Hermes overlay](#8-hermes-integration-optional); set `KB_SYNTH_KEY` if the proxy checks one |
 | OpenAI | `https://api.openai.com/v1` | `KB_SYNTH_KEY=sk-...`, `KB_SYNTH_MODEL=gpt-4o-mini` (or similar) |
 | Ollama | `http://host.docker.internal:11434/v1` | `KB_SYNTH_MODEL=llama3.1` (or any pulled model); see Linux note |
@@ -215,22 +215,26 @@ your vault or any repository.
 
 In `.env`:
 
-    KB_SYNTH_PROVIDER=cursor
-    CURSOR_API_KEY=crsr_...        # user API key from the Cursor dashboard
-    KB_SYNTH_MODEL=composer-2.5    # or any id from your plan
-    KB_EXTRAS=cursor               # bakes cursor-sdk into the image
+```dotenv
+KB_SYNTH_PROVIDER=cursor
+CURSOR_API_KEY=crsr_...        # user API key from the Cursor dashboard
+KB_SYNTH_MODEL=composer-2.5    # or any id from your plan
+KB_EXTRAS=cursor               # bakes cursor-sdk into the image
+```
 
 Then rebuild and restart: `make up`. Smoke test (expects a cited answer or
 "insufficient evidence"):
 
-    KB_MCP_KEY=$(grep '^KB_MCP_KEY=' .env | cut -d= -f2)
-    curl -s -X POST http://127.0.0.1:8077/mcp \
-      -H "Authorization: Bearer $KB_MCP_KEY" \
-      -H "Content-Type: application/json" \
-      -H "Accept: application/json, text/event-stream" \
-      -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}' -D - | grep -i mcp-session-id
-    # then call tools/call ask with the returned session id, or just use the
-    # kb tools from Claude Code / your MCP client.
+```bash
+KB_MCP_KEY=$(grep '^KB_MCP_KEY=' .env | cut -d= -f2)
+curl -s -X POST http://127.0.0.1:8077/mcp \
+  -H "Authorization: Bearer $KB_MCP_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}' -D - | grep -i mcp-session-id
+# then call tools/call ask with the returned session id, or just use the
+# kb tools from Claude Code / your MCP client.
+```
 
 Notes:
 
@@ -331,7 +335,7 @@ and runs `kb reindex`/`kb consolidate` in the container.
 Common issues:
 
 | Symptom | Cause / fix |
-|---|---|
+| --- | --- |
 | `RuntimeError: kb-mcp cannot start: missing required env var(s) ...` in logs | No `.env` (or empty values). `cp .env.example .env` and set them. |
 | `port is already allocated` on 8077 | Another stack owns it (e.g. hermes-test). Set `KB_MCP_PORT=8078` in `.env`, re-run `make up`, update your `claude mcp` registration URL. |
 | Container unhealthy for a few minutes after first boot | Model download + load. Wait for the healthcheck `start_period` (10 min); watch `make logs`. |
