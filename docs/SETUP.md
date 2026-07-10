@@ -190,6 +190,7 @@ endpoint** and restarting (`make up`):
 | OpenAI | `https://api.openai.com/v1` | `KB_SYNTH_KEY=sk-...`, `KB_SYNTH_MODEL=gpt-4o-mini` (or similar) |
 | Ollama | `http://host.docker.internal:11434/v1` | `KB_SYNTH_MODEL=llama3.1` (or any pulled model); see Linux note |
 | LiteLLM / any proxy | `http://<host>:<port>/v1` | Whatever the proxy fronts |
+| Cursor (work subscription) | *(not a URL — set `KB_SYNTH_PROVIDER=cursor`)* | See "Cursor provider" below |
 
 **Linux note:** `host.docker.internal` doesn't resolve by default on the
 Linux Docker engine. Add this to the `kb-mcp` service in `docker-compose.yml`
@@ -204,6 +205,42 @@ Linux Docker engine. Add this to the `kb-mcp` service in `docker-compose.yml`
 `KB_EXTRACT_MODEL` / `KB_INGEST_MODEL` override it per-feature. Leaving
 `KB_SYNTH_BASE_URL` empty keeps everything cleanly disabled — nothing will
 attempt an LLM call.
+
+### Cursor provider (office instances)
+
+If your work LLM access is a Cursor subscription, the KB can run its LLM
+features through the Cursor SDK instead of an OpenAI-wire endpoint. Each call
+is a one-shot agent run in an empty scratch workspace — the agent never sees
+your vault or any repository.
+
+In `.env`:
+
+    KB_SYNTH_PROVIDER=cursor
+    CURSOR_API_KEY=crsr_...        # user API key from the Cursor dashboard
+    KB_SYNTH_MODEL=composer-2.5    # or any id from your plan
+    KB_EXTRAS=cursor               # bakes cursor-sdk into the image
+
+Then rebuild and restart: `make up`. Smoke test (expects a cited answer or
+"insufficient evidence"):
+
+    KB_MCP_KEY=$(grep '^KB_MCP_KEY=' .env | cut -d= -f2)
+    curl -s -X POST http://127.0.0.1:8077/mcp \
+      -H "Authorization: Bearer $KB_MCP_KEY" \
+      -H "Content-Type: application/json" \
+      -H "Accept: application/json, text/event-stream" \
+      -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}' -D - | grep -i mcp-session-id
+    # then call tools/call ask with the returned session id, or just use the
+    # kb tools from Claude Code / your MCP client.
+
+Notes:
+
+- Runs bill to your team's Cursor dashboard under your key's privacy rules.
+  Keep `KB_EXTRACT_MAX_FACTS` and `KB_INGEST_MAX_SOURCES` modest at first —
+  the nightly job makes one run per fact/source.
+- Agent runs are slower than raw chat completions; `ask` latency is
+  noticeably higher than with an OpenAI-wire backend.
+- Team-admin API keys are not supported by the SDK; use a user or service
+  account key.
 
 ## 7. Nightly consolidation
 

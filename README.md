@@ -37,8 +37,10 @@ claude mcp list    # expect: kb ... ✔ Connected
 ```
 
 That's a fully working install: search and write work out of the box. The
-LLM-backed features (`ask`, entity extraction, auto-ingest) are off until you
-set `KB_SYNTH_BASE_URL` — see the setup guide.
+LLM-backed features (`ask`, entity extraction, auto-ingest) are off until
+you configure a backend — any OpenAI-compatible endpoint via
+`KB_SYNTH_BASE_URL`, or a Cursor subscription via `KB_SYNTH_PROVIDER=cursor`
+— see the setup guide.
 
 ## Full setup guide
 
