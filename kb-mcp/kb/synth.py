@@ -15,8 +15,20 @@ class LLMClient(Protocol):
 
 
 def synth_configured(config) -> bool:
-    """LLM features are enabled iff a synth base URL is set (empty = off)."""
+    """LLM features are enabled iff the selected provider has credentials."""
+    if config.synth_provider == "cursor":
+        return bool(config.cursor_api_key)
     return bool(config.synth_base_url)
+
+
+def build_llm(config) -> "LLMClient | None":
+    """Construct the configured LLM client, or None when LLM features are off."""
+    if not synth_configured(config):
+        return None
+    if config.synth_provider == "cursor":
+        from kb.cursor_llm import CursorAgentClient
+        return CursorAgentClient(config.cursor_api_key)
+    return OpenAIWireClient(config.synth_base_url, config.synth_key)
 
 
 def build_messages(question: str, facts: list[Fact]) -> list[dict]:

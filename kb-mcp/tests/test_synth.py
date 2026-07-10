@@ -69,3 +69,32 @@ def test_synth_configured_false_with_empty_base_url(tmp_path):
     from kb.synth import synth_configured
     cfg = Config(repo_path=tmp_path, db_url="x", synth_base_url="")
     assert synth_configured(cfg) is False
+
+def test_synth_configured_cursor_requires_key(tmp_path):
+    from kb.synth import synth_configured
+    with_key = Config(repo_path=tmp_path, db_url="x", synth_provider="cursor",
+                      cursor_api_key="crsr_k", synth_base_url="")
+    without_key = Config(repo_path=tmp_path, db_url="x", synth_provider="cursor",
+                         synth_base_url="http://claude-proxy:8000/v1")
+    assert synth_configured(with_key) is True
+    assert synth_configured(without_key) is False
+
+def test_build_llm_openai(tmp_path):
+    from kb.synth import build_llm, OpenAIWireClient
+    cfg = Config(repo_path=tmp_path, db_url="x")
+    assert isinstance(build_llm(cfg), OpenAIWireClient)
+
+def test_build_llm_unconfigured_returns_none(tmp_path):
+    from kb.synth import build_llm
+    assert build_llm(Config(repo_path=tmp_path, db_url="x", synth_base_url="")) is None
+
+def test_build_llm_cursor(tmp_path, monkeypatch):
+    from tests.test_cursor_llm import install_fake_cursor_sdk
+    install_fake_cursor_sdk(monkeypatch)
+    from kb.synth import build_llm
+    from kb.cursor_llm import CursorAgentClient
+    cfg = Config(repo_path=tmp_path, db_url="x", synth_provider="cursor",
+                 cursor_api_key="crsr_k")
+    llm = build_llm(cfg)
+    assert isinstance(llm, CursorAgentClient)
+    assert llm.api_key == "crsr_k"
