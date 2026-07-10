@@ -1,3 +1,7 @@
+> **Historical.** Deployment/scheduling details below assume the hermes-test
+> stack; the standalone compose in this repo is now canonical — see
+> [../SETUP.md](../SETUP.md). Env knobs and CLI behavior remain accurate.
+
 # Spec C ops — scriptable + confidence-gated ingest
 
 - `kb ingest <file> [--scope S] [--force]` — distill a source into atomic facts via claude-proxy.

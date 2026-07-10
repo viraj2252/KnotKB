@@ -1,3 +1,7 @@
+> **Historical.** Deployment/scheduling details below assume the hermes-test
+> stack; the standalone compose in this repo is now canonical — see
+> [../SETUP.md](../SETUP.md). Env knobs and CLI behavior remain accurate.
+
 # Spec B ops — knowledge graph
 
 - Nightly `kb consolidate --apply` now also extracts entities (claude-proxy) for

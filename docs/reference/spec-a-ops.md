@@ -1,3 +1,7 @@
+> **Historical.** Deployment/scheduling details below assume the hermes-test
+> stack; the standalone compose in this repo is now canonical — see
+> [../SETUP.md](../SETUP.md). Env knobs and CLI behavior remain accurate.
+
 # spec-a Operations Guide
 
 Operational reference for the KB MCP server (spec-a feature set): reranker, synthesis (`ask`), wikilinks, and nightly consolidation.

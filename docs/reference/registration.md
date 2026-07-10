@@ -1,3 +1,9 @@
+> **Historical.** The stack now runs standalone from this repo's own
+> `docker-compose.yml` (see [../SETUP.md](../SETUP.md)); the hermes-test-managed
+> deployment described below is superseded. The Claude Code and Hermes
+> registration commands remain accurate — just source `KB_MCP_KEY` from this
+> repo's `.env`.
+
 # Registering kb-mcp
 
 The kb-mcp server can be registered with both Claude Code and Hermes, allowing bidirectional knowledge sharing across clients.
